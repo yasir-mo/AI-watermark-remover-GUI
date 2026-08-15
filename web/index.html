@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wmtk — strip AI watermarks from text</title>
+<meta name="description" content="Remove invisible Unicode watermarks and displace statistical token-sampling watermarks. Runs entirely in your browser.">
+
+<!-- No server, and the page handles API keys, so script injection is the only
+     realistic way a key leaks. Lock the origins down. 'wasm-unsafe-eval' and
+     the jsdelivr/huggingface entries exist solely for the opt-in local model;
+     nothing loads from them until the visitor clicks. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data:;
+  connect-src https:;
+  worker-src 'self' blob:;
+  base-uri 'none';
+  form-action 'none';
+  frame-ancestors 'none';
+  object-src 'none'">
+<meta name="referrer" content="no-referrer">
+
+<link rel="stylesheet" href="./styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>◍</text></svg>">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">U+</span>
+    <h1>wmtk</h1>
+    <span class="version" id="version">Layer A + B</span>
+  </div>
+  <div class="masthead-right">
+    <span class="lamp on" title="Nothing you type is sent to this site's server, because it does not have one.">
+      runs in your browser
+    </span>
+    <a class="mini" id="repo-link" href="https://github.com/yasir-mo/AI-watermark-remover-GUI" target="_blank" rel="noopener">Source</a>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" class="tab is-active" data-tab="strip" aria-selected="true">Strip</button>
+  <button role="tab" class="tab" data-tab="rewrite" aria-selected="false">Rewrite</button>
+  <button role="tab" class="tab" data-tab="examples" aria-selected="false">Examples</button>
+  <button role="tab" class="tab" data-tab="about" aria-selected="false">How it works</button>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════ STRIP (Layer A) ══ -->
+<section class="panel" id="tab-strip" role="tabpanel">
+
+  <p class="lede">
+    Invisible characters embedded in text survive copy and paste but never show
+    up on screen. This finds them and takes them out — entirely on your machine,
+    with no key and no upload.
+  </p>
+
+  <div class="split">
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Source</h2>
+        <span class="pane-meta" id="src-count">0 characters</span>
+        <button class="mini" id="load-sample" type="button">Load a marked sample</button>
+      </div>
+      <textarea id="src" spellcheck="false"
+        placeholder="Paste text here to see what is hiding in it."></textarea>
+    </div>
+
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Cleaned</h2>
+        <span class="pane-meta" id="out-count">—</span>
+        <button class="mini" id="copy-out" type="button">Copy</button>
+      </div>
+      <textarea id="out" spellcheck="false" readonly
+        placeholder="Clean the source to fill this pane."></textarea>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btn-clean" type="button">Clean</button>
+    <label class="check"><input type="checkbox" id="opt-aggressive"> Aggressive
+      <span class="hint" title="Also fold Cyrillic, Greek and fullwidth lookalikes to ASCII. This corrupts text that is genuinely Cyrillic or Greek.">?</span></label>
+    <label class="check"><input type="checkbox" id="opt-glue"> Strip emoji glue
+      <span class="hint" title="Removes joiners that emoji sequences and Persian, Devanagari and Khmer text depend on. This will break them.">?</span></label>
+    <label class="check"><input type="checkbox" id="opt-nfkc"> NFKC
+      <span class="hint" title="Apply Unicode NFKC normalization after cleaning.">?</span></label>
+    <span class="pane-meta" id="live-note">Updates as you type</span>
+  </div>
+
+  <div id="sample-note" class="callout" hidden></div>
+
+  <div class="reveal-block" id="reveal-block" hidden>
+    <div class="section-head">
+      <h3>Reveal</h3>
+      <p>Every hidden character, materialized where it sits. Hover for details.</p>
+    </div>
+    <div class="ruler" id="ruler" aria-hidden="true"></div>
+    <div class="reveal" id="reveal"></div>
+  </div>
+
+  <div class="findings-block" id="findings-block" hidden>
+    <div class="section-head">
+      <h3>Findings</h3>
+      <p id="findings-summary"></p>
+    </div>
+    <div class="table-wrap">
+      <table class="data" id="findings">
+        <thead><tr>
+          <th>Codepoint</th><th>Name</th><th>Kind</th>
+          <th class="num">Count</th><th class="num">Kept</th><th>Offsets</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="footnote" id="kept-note" hidden></p>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════ REWRITE (Layer B) ══ -->
+<section class="panel" id="tab-rewrite" role="tabpanel" hidden>
+
+  <p class="lede">
+    Some models bias their own token sampling with a secret key, so the
+    watermark <em>is</em> the word choices. Nothing can be deleted. Instead a
+    second model rewrites the prose from its own distribution, and the original
+    pattern does not carry over.
+  </p>
+
+  <div class="mode-picker" role="radiogroup" aria-label="Rewrite mode">
+    <label class="mode">
+      <input type="radio" name="rwmode" value="examples" checked>
+      <span class="mode-title">See examples</span>
+      <span class="mode-sub">No key, instant. Worked before/after pairs.</span>
+    </label>
+    <label class="mode">
+      <input type="radio" name="rwmode" value="key">
+      <span class="mode-title">Use my API key</span>
+      <span class="mode-sub">Best quality. Free tiers available. Key stays in this tab.</span>
+    </label>
+    <label class="mode">
+      <input type="radio" name="rwmode" value="local">
+      <span class="mode-title">Run a model in my browser</span>
+      <span class="mode-sub">No key at all. Large download, weaker output.</span>
+    </label>
+  </div>
+
+  <!-- BYOK config -->
+  <div id="cfg-key" hidden>
+    <div class="privacy">
+      <strong>Your key goes straight from this page to the provider.</strong>
+      This site has no server, so there is nowhere else for it to go. Open your
+      browser's network tab and you will see exactly one request, to the
+      provider's own domain. The key is kept for this tab only unless you tick
+      “remember”.
+    </div>
+
+    <div class="grid2">
+      <label class="field">
+        <span>Provider</span>
+        <select id="rw-provider"></select>
+        <em class="field-note" id="provider-note"></em>
+      </label>
+
+      <label class="field">
+        <span>Model</span>
+        <input type="text" id="rw-model" spellcheck="false" list="model-list">
+        <datalist id="model-list"></datalist>
+        <em class="field-note" id="model-note"></em>
+      </label>
+    </div>
+
+    <label class="field" id="endpoint-field" hidden>
+      <span>Endpoint URL</span>
+      <input type="text" id="rw-endpoint" spellcheck="false"
+             placeholder="https://host/v1/chat/completions">
+    </label>
+
+    <label class="field">
+      <span>API key <em id="key-state"></em></span>
+      <span class="key-row">
+        <input type="password" id="rw-key" autocomplete="off" spellcheck="false"
+               placeholder="paste your key">
+        <button class="mini" id="key-show" type="button">Show</button>
+        <button class="mini" id="key-clear" type="button">Forget</button>
+      </span>
+      <em class="field-note" id="key-note"></em>
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="key-remember"> Remember on this device
+      <span class="hint" title="Stores the key in localStorage so it survives closing the tab. Anyone with access to this browser profile can read it.">?</span>
+    </label>
+
+    <p class="footnote" id="get-key-line"></p>
+  </div>
+
+  <!-- Local model config -->
+  <div id="cfg-local" hidden>
+    <div class="callout warn" id="webgpu-warn" hidden></div>
+    <div class="grid2">
+      <label class="field">
+        <span>Model</span>
+        <select id="local-model"></select>
+        <em class="field-note">Downloaded once, then cached by your browser.</em>
+      </label>
+      <div class="field">
+        <span>Status</span>
+        <div class="progress"><div class="progress-fill" id="local-progress"></div></div>
+        <em class="field-note" id="local-status">Not loaded.</em>
+      </div>
+    </div>
+    <div class="callout">
+      A model this small is a weak paraphraser — it shows the mechanism rather
+      than Layer B at its best. For real work, a free-tier key with a large
+      model gives far better results.
+    </div>
+  </div>
+
+  <!-- Shared knobs -->
+  <div id="cfg-shared" hidden>
+    <div class="grid2">
+      <label class="field">
+        <span>Strength</span>
+        <select id="rw-strength"></select>
+        <em class="field-note" id="strength-note"></em>
+      </label>
+      <label class="field">
+        <span>Temperature <output id="rw-temp-val">0.9</output></span>
+        <input type="range" id="rw-temp" min="0" max="2" step="0.1" value="0.9">
+        <em class="field-note">Higher wanders further from the original wording.</em>
+      </label>
+    </div>
+    <label class="field">
+      <span>Candidates <output id="rw-cand-val">1</output></span>
+      <input type="range" id="rw-cand" min="1" max="5" step="1" value="1">
+      <em class="field-note">Generate several, keep the one that diverges most. Costs one call each.</em>
+    </label>
+  </div>
+
+  <div class="split" id="rw-panes" hidden>
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Your text</h2>
+        <span class="pane-meta" id="rw-src-count">0 characters</span>
+      </div>
+      <textarea id="rw-src" spellcheck="false"
+        placeholder="Paste the text you want rewritten."></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Rewritten</h2>
+        <span class="pane-meta" id="rw-out-count">—</span>
+        <button class="mini" id="rw-copy" type="button">Copy</button>
+      </div>
+      <textarea id="rw-out" spellcheck="false" readonly
+        placeholder="The rewritten text appears here."></textarea>
+    </div>
+  </div>
+
+  <div class="controls" id="rw-controls" hidden>
+    <button class="btn btn-primary" id="rw-run" type="button">Rewrite</button>
+    <button class="btn" id="rw-preview" type="button">Show the exact prompt</button>
+    <button class="btn" id="rw-cancel" type="button" hidden>Cancel</button>
+    <span class="pane-meta" id="rw-progress"></span>
+  </div>
+
+  <div id="rw-result" hidden>
+    <div class="section-head"><h3>Result</h3><p id="rw-stats"></p></div>
+    <div class="meter" id="div-meter" hidden>
+      <div class="meter-bar"><div class="meter-fill" id="div-fill"></div></div>
+      <span class="meter-label" id="div-label"></span>
+    </div>
+    <ul class="notes" id="rw-notes"></ul>
+  </div>
+
+  <div id="rw-prompt-block" hidden>
+    <div class="section-head">
+      <h3>Prompt</h3>
+      <p>Byte-for-byte what would be sent. Nothing else is added.</p>
+    </div>
+    <pre class="preview" id="rw-prompt"></pre>
+  </div>
+
+  <!-- Examples mode -->
+  <div id="cfg-examples">
+    <div class="callout">
+      <strong>These “after” texts are written by hand to illustrate the goal of
+      each setting.</strong> They are not model output and this page does not
+      pretend otherwise. The divergence score under each one <em>is</em> real —
+      computed live by the same function that scores an actual rewrite.
+    </div>
+    <div id="examples-list"></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ EXAMPLES ══ -->
+<section class="panel" id="tab-examples" role="tabpanel" hidden>
+  <div class="section-head">
+    <h3>What gets found</h3>
+    <p>Each button loads real text into the Strip tab. Nothing is simulated.</p>
+  </div>
+  <div class="cards" id="demo-cards"></div>
+</section>
+
+<!-- ═════════════════════════════════════════════════════════════ ABOUT ══ -->
+<section class="panel" id="tab-about" role="tabpanel" hidden>
+  <div class="prose">
+    <h3>Two different problems</h3>
+    <p>
+      <strong>Layer A — invisible characters.</strong> Zero-width spaces,
+      joiners, bidi controls, variation selectors and Unicode tag characters can
+      be embedded in text without showing on screen. Tag characters can carry a
+      whole hidden string. Removing them is deterministic and lossless: they are
+      either present or they are not, and you can verify the result by running
+      the scan again. This runs in your browser, in JavaScript, with no key.
+    </p>
+    <p>
+      <strong>Layer B — statistical watermarks.</strong> A model can bias its
+      own token sampling with a secret key. Kirchenbauer's KGW scheme hashes
+      preceding tokens to split the vocabulary into a green list and a red list,
+      then nudges green tokens upward. Google's SynthID-Text runs a tournament
+      between candidates instead. Either way the mark <em>is</em> the word
+      choices, so there is nothing to delete. A second model rewriting the prose
+      samples from its own distribution and does not reproduce the first model's
+      pattern.
+    </p>
+
+    <h3>What this does not do</h3>
+    <ul>
+      <li>
+        <strong>Layer B is not a guarantee.</strong> It displaces a token-level
+        watermark; it does not prove absence. It is weaker against
+        paragraph-level schemes such as SemStamp and PostMark than against the
+        token-level ones currently deployed. Nothing here makes text
+        “undetectable”, and this page will not tell you otherwise.
+      </li>
+      <li>
+        <strong>Rewriting costs quality.</strong> If you would rewrite with a
+        cheaper model anyway, generating with that model directly is simpler.
+        Layer B earns its place when you wanted a stronger model's reasoning and
+        will spend a paraphrase pass on hygiene.
+      </li>
+      <li>
+        <strong>Use a different vendor.</strong> Rewriting Claude output with
+        Claude, or Gemini output with Gemini, can re-apply the same mark.
+      </li>
+      <li>
+        <strong>This page is text only.</strong> Files, image metadata, C2PA
+        manifests and PDFs need the local tool.
+      </li>
+    </ul>
+
+    <h3>Where your data goes</h3>
+    <p>
+      Layer A never leaves your browser. Layer B sends your text to whichever
+      provider you choose, using your key, directly — this site has no backend
+      to route it through. The opt-in in-browser model sends nothing anywhere,
+      but downloads model weights from a CDN on first use.
+    </p>
+
+    <h3>Providers</h3>
+    <p>
+      A browser can only call providers that permit cross-origin requests. These
+      were verified by preflight; the ones that block browsers still work in the
+      local app, where a Python process makes the call and CORS never applies.
+    </p>
+    <div class="table-wrap">
+      <table class="data" id="provider-table">
+        <thead><tr><th>Provider</th><th>From this page</th><th>Notes</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h3>The full toolkit</h3>
+    <p>
+      This page is the text half. The local tool also strips C2PA manifests,
+      EXIF, XMP and document properties from PNG, JPEG, WebP, SVG, PDF, DOCX,
+      ODT, HTML and Markdown, and ships a CLI, an HTTP service and an agent
+      skill.
+      <a id="repo-link-2" href="https://github.com/yasir-mo/AI-watermark-remover-GUI" target="_blank" rel="noopener">Source and install instructions</a>.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+<script type="module" src="./src/app.js"></script>
+<noscript>
+  <p style="padding:24px">This tool runs entirely in the browser, so it needs JavaScript enabled.</p>
+</noscript>
+</body>
+</html>

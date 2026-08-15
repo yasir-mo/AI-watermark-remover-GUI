@@ -77,6 +77,48 @@ jobs:
           print(f"all {len(mods)} core modules import cleanly")
           PY
 
+  web:
+    name: web build (Layer A parity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Layer A exists in Python and in JavaScript. This is the job that stops
+      # them diverging: the tables and conformance vectors are generated from
+      # the Python source, and the JS must reproduce every expectation.
+      - name: Generated assets are current
+        run: python -m tools.gen_web_assets --check
+
+      - name: Conformance — JS matches Python
+        run: node --test web/test/conformance.test.mjs
+
+      - name: Layer B browser client
+        run: node --test web/test/rewrite.test.mjs
+
+      - name: Every module parses
+        run: for f in web/src/*.js; do node --check "$f"; done
+
+      - name: Every DOM id the app touches exists in the HTML
+        run: |
+          python - <<'PY'
+          import re, sys
+          html = open('web/index.html', encoding='utf-8').read()
+          js = open('web/src/app.js', encoding='utf-8').read()
+          ids = set(re.findall(r'id="([^"]+)"', html))
+          used = set(re.findall(r'\$\(.([\w-]+).\)', js))
+          missing = sorted(used - ids)
+          if missing:
+              print('::error::app.js references missing element ids:', missing)
+              sys.exit(1)
+          print(f'{len(used)} referenced ids all present')
+          PY
+
   lint:
     runs-on: ubuntu-latest
     steps:

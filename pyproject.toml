@@ -57,3 +57,6 @@ ignore = [
 "tests/*" = ["S", "RUF001", "RUF003"]
 # The Unicode tables must contain the exact confusable characters they describe.
 "wmtk/unicode_tables.py" = ["RUF001", "RUF003"]
+# Likewise the conformance cases: each one exists to pin the behaviour of a
+# specific ambiguous or invisible character, so it has to contain that character.
+"tools/gen_web_assets.py" = ["RUF001", "RUF003"]

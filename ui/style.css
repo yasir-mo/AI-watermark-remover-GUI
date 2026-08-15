@@ -68,6 +68,11 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute is only `display:none` in the UA stylesheet, so any
+   author rule that sets `display` (a .split grid, a .controls flex) silently
+   beats it and the element stays on screen. Make hidden actually hidden. */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {

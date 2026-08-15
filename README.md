@@ -26,6 +26,49 @@ never required.
            (drag-drop, diff, batch)     (an AI agent as the CLI)
 ```
 
+## Try it without installing anything
+
+A static build of the text layers runs at
+**[yasir-mo.github.io/AI-watermark-remover-GUI](https://yasir-mo.github.io/AI-watermark-remover-GUI/)**.
+
+There is no backend. Layer A runs in your browser, and Layer B sends your text
+straight from the page to whichever provider you pick, using your own key. The
+site never sees the key, because there is no server for it to reach — open the
+network tab and you will see a single request, to the provider's own domain.
+
+| Mode | Needs | Gets you |
+|---|---|---|
+| Strip (Layer A) | nothing | The real cleaner, running locally in JavaScript |
+| Rewrite → examples | nothing | Worked before/after pairs with live divergence scores |
+| Rewrite → in-browser model | a ~500 MB download, WebGPU | A real rewrite with no key. Weak output — it shows the mechanism |
+| Rewrite → your API key | a free-tier key | The real thing |
+
+Free providers reachable from a browser: **OpenRouter** (dozens of `:free`
+models through one integration), Google AI Studio, Mistral, DeepSeek, and
+Hugging Face. Groq, Cerebras and Together send no CORS headers, so a browser
+cannot call them — they work fine in the local app below, where Python makes
+the request and CORS never applies.
+
+The site is text only. Files, metadata and PDFs need the local tool.
+
+### Layer A exists twice, on purpose
+
+The web build ships its own JavaScript copy of Layer A so it can run with no
+server. Two implementations of watermark-stripping logic could drift, and the
+failure would be silent — the site telling someone their text is clean when the
+CLI would still find marks in it.
+
+So they are pinned together. `tools/gen_web_assets.py` generates both the
+JavaScript codepoint tables and a set of conformance vectors *from the Python
+source*, and CI runs those same vectors against both runtimes. A divergence
+turns the build red and blocks the deploy.
+
+```bash
+python -m tools.gen_web_assets          # regenerate after touching Layer A
+python -m tools.gen_web_assets --check  # fail if stale (CI runs this)
+node --test web/test/conformance.test.mjs
+```
+
 ## Quick start
 
 ```bash

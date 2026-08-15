@@ -1,0 +1,94 @@
+name: Deploy demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'conformance/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; always let the newest win.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The site ships its own copy of Layer A. If it has drifted from the
+      # Python reference, publishing would put a subtly wrong cleaner in front
+      # of the public. Refuse to deploy in that case.
+      - name: Generated assets are current
+        run: python -m tools.gen_web_assets --check
+
+      - name: JS matches the Python reference
+        run: |
+          node --test web/test/conformance.test.mjs
+          node --test web/test/rewrite.test.mjs
+
+      - name: No stray secrets in the published directory
+        run: |
+          if grep -rInE "(sk-[A-Za-z0-9]{16,}|gsk_[A-Za-z0-9]{16,}|AIza[A-Za-z0-9_-]{20,})" web/; then
+            echo "::error::something that looks like an API key is in web/"
+            exit 1
+          fi
+          echo "clean"
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement:true turns Pages on for the repo the first time this runs,
+      # so publishing needs no manual setting.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -r web/* _site/
+          # Jekyll would otherwise ignore files beginning with an underscore.
+          touch _site/.nojekyll
+          # A 404 that still gives people the tool.
+          cp web/index.html _site/404.html
+          ls -R _site | head -40
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Where it landed
+        run: echo "Published to ${{ steps.deployment.outputs.page_url }}"
