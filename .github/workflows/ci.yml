@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.12"]
+        include:
+          # One job with the optional tools present, to cover the upgraded
+          # code paths (exiftool enrichment, qpdf PDF rebuild).
+          - os: ubuntu-latest
+            python: "3.12"
+            with-tools: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install optional tools
+        if: matrix.with-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libimage-exiftool-perl qpdf
+          exiftool -ver
+          qpdf --version
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Test
+        run: pytest --cov=wmtk --cov-report=term-missing
+
+      - name: Verify the core imports with no third-party packages
+        shell: bash
+        run: |
+          # The core must work on a bare interpreter. Fail loudly if any module
+          # grew an import that is not in the standard library.
+          python - <<'PY'
+          import subprocess, sys, pathlib
+          mods = [
+              "wmtk.layer_a", "wmtk.safety", "wmtk.server",
+              "wmtk.rewrite", "wmtk.capabilities", "wmtk.openapi",
+              "wmtk.metadata", "wmtk.unicode_tables",
+          ]
+          bad = []
+          for m in mods:
+              r = subprocess.run([sys.executable, "-S", "-c", f"import {m}"],
+                                 capture_output=True, text=True)
+              if r.returncode:
+                  bad.append((m, r.stderr.strip().splitlines()[-1:]))
+          if bad:
+              for m, err in bad:
+                  print(f"{m}: {err}")
+              sys.exit(1)
+          print(f"all {len(mods)} core modules import cleanly")
+          PY
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  smoke:
+    name: end-to-end service smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Start the service
+        run: |
+          python -m wmtk.server --port 8765 &
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8765/health && break
+            sleep 0.25
+          done
+
+      - name: Health and capabilities
+        run: |
+          curl -sf http://127.0.0.1:8765/health | tee /dev/stderr | grep -q '"ok": *true'
+          curl -sf http://127.0.0.1:8765/capabilities > caps.json
+          python -c "import json; d=json.load(open('caps.json')); assert 'exiftool' in d['tools']"
+
+      - name: Inspect and clean a text payload
+        run: |
+          printf 'hello​world' > sample.txt
+          python -c "import json;print(json.dumps({'text':open('sample.txt',encoding='utf-8').read(),'name':'sample.txt'}))" > req.json
+          curl -sf -X POST http://127.0.0.1:8765/inspect \
+            -H 'Content-Type: application/json' --data-binary @req.json > insp.json
+          python -c "import json; d=json.load(open('insp.json')); assert d['layer_a']['total_removable']==1, d"
+          curl -sf -X POST http://127.0.0.1:8765/clean \
+            -H 'Content-Type: application/json' --data-binary @req.json > clean.json
+          python -c "
+          import json,base64
+          d=json.load(open('clean.json'))
+          out=base64.b64decode(d['cleaned']).decode()
+          assert out=='helloworld', repr(out)
+          print('clean output verified:', repr(out))
+          "
+
+      - name: The UI is served
+        run: curl -sf http://127.0.0.1:8765/ui/ | grep -q '<title>wmtk'
+
+      - name: Path traversal is refused
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --path-as-is \
+                 'http://127.0.0.1:8765/ui/../wmtk/server.py')
+          test "$code" != "200" || (echo "traversal succeeded" && exit 1)
+
+      - name: The OpenAPI spec parses
+        run: curl -sf http://127.0.0.1:8765/openapi.json | python -c "import json,sys; json.load(sys.stdin)"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the core image
+        run: docker build -t wmtk:ci .
+      - name: Run it and check health
+        run: |
+          docker run -d --name wmtk-ci -p 127.0.0.1:8765:8765 wmtk:ci
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8765/health && break
+            sleep 0.5
+          done
+          curl -sf http://127.0.0.1:8765/capabilities | python -c "
+          import json,sys
+          caps = json.load(sys.stdin)
+          print('pdf tier in image:', caps['pdf_tier'])
+          assert caps['tools']['exiftool']['installed'], 'exiftool missing from the image'
+          assert caps['tools']['qpdf']['installed'], 'qpdf missing from the image'
+          "
+      - name: The container does not run as root
+        run: test "$(docker exec wmtk-ci id -u)" != "0"
+      - name: Clean up
+        if: always()
+        run: docker rm -f wmtk-ci || true

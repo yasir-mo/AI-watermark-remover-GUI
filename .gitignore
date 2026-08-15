@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Third-party checkouts pulled by scripts/setup_markllm.sh
+vendor/
+work/
+
+# Cleaned outputs produced while testing
+*.cleaned.*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,37 @@
+# CtrlRegen: pixel-domain watermark removal by controlled regeneration.
+#
+# This is the only backend that touches watermarks encoded in image pixels
+# rather than in metadata. Metadata stripping does not affect them at all.
+#
+# Weights are NOT baked in. Mount them at /weights, or let the entrypoint pull
+# them into the shared HF cache on first run.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    HF_HOME=/home/wmtk/.cache/huggingface \
+    WATERMARKS_CTRLREGEN_PATH=/opt/ctrlregen
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git ca-certificates libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --uid 10001 wmtk
+
+ARG TORCH_INDEX=cpu
+RUN pip install --no-cache-dir \
+        --index-url "https://download.pytorch.org/whl/${TORCH_INDEX}" \
+        torch==2.4.1 torchvision==0.19.1 \
+ && pip install --no-cache-dir \
+        "diffusers==0.30.3" \
+        "transformers==4.44.2" \
+        "accelerate==0.34.2" \
+        "safetensors==0.4.5" \
+        "pillow==10.4.0" \
+        "numpy==1.26.4"
+
+WORKDIR /app
+COPY --chown=wmtk:wmtk wmtk/ ./wmtk/
+USER wmtk
+
+ENTRYPOINT ["python", "-c", "import sys; print('CtrlRegen backend image. Mount weights at /weights and invoke your pipeline script.'); print('args:', sys.argv[1:])"]
+CMD ["--help"]

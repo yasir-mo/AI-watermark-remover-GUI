@@ -1,0 +1,43 @@
+# THU-BPM/MarkLLM detection harness. Local build only, never published.
+# MarkLLM is Apache-2.0 and is cloned at build time, not vendored in this repo.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    WATERMARKS_MARKLLM_PATH=/opt/markllm \
+    HF_HOME=/home/wmtk/.cache/huggingface
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git ca-certificates && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --uid 10001 wmtk
+
+ARG MARKLLM_COMMIT=main
+RUN git clone --depth 1 --filter=blob:none --sparse \
+        https://github.com/THU-BPM/MarkLLM.git /opt/markllm \
+ && cd /opt/markllm \
+ && git sparse-checkout set watermark config utils exceptions \
+        evaluation/dataset.py visualize \
+ && if [ "$MARKLLM_COMMIT" != "main" ]; then git fetch --depth 1 origin "$MARKLLM_COMMIT" && git checkout "$MARKLLM_COMMIT"; fi \
+ && chown -R wmtk:wmtk /opt/markllm
+
+# CPU wheels by default. Rebuild with --build-arg TORCH_INDEX=cu121 for CUDA.
+ARG TORCH_INDEX=cpu
+RUN pip install --no-cache-dir \
+        --index-url "https://download.pytorch.org/whl/${TORCH_INDEX}" \
+        torch==2.4.1 \
+ && pip install --no-cache-dir \
+        "transformers==4.44.2" \
+        "tokenizers==0.19.1" \
+        "datasets==2.21.0" \
+        "accelerate==0.34.2" \
+        "sentencepiece==0.2.0" \
+        "nltk==3.9.1" \
+        "numpy==1.26.4" \
+        "scipy==1.14.1" \
+        "huggingface_hub==0.25.1"
+
+WORKDIR /app
+COPY --chown=wmtk:wmtk wmtk/ ./wmtk/
+USER wmtk
+ENTRYPOINT ["python", "-m", "wmtk.cli.detect_text_watermark"]
+CMD ["--help"]

@@ -1,0 +1,14 @@
+# Deny by default; the Dockerfile opts in to wmtk/ and ui/ only.
+*
+
+!wmtk/
+!wmtk/**
+!ui/
+!ui/**
+
+# Re-exclude anything that should never enter an image.
+**/__pycache__/
+**/*.pyc
+**/.env
+**/*.key
+**/*.pem

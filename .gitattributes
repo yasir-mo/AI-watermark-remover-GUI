@@ -1,0 +1,22 @@
+# Normalize to LF in the repository. Shell scripts and Dockerfiles break with
+# CRLF, and the Python/JS sources are byte-compared by the conformance tests.
+* text=auto eol=lf
+
+*.sh        text eol=lf
+Dockerfile* text eol=lf
+*.py        text eol=lf
+*.js        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+
+# Never touch binaries.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.pdf binary
+*.docx binary
+*.odt binary

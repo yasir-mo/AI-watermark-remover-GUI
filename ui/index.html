@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wmtk — watermark inspector</title>
+<link rel="stylesheet" href="/ui/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>◍</text></svg>">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">U+</span>
+    <h1>wmtk</h1>
+    <span class="version" id="version" title="service version">—</span>
+  </div>
+  <div class="lamps" id="lamps" role="status" aria-label="Optional tool availability"></div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" class="tab is-active" data-tab="text" aria-selected="true">Text</button>
+  <button role="tab" class="tab" data-tab="files" aria-selected="false">Files</button>
+  <button role="tab" class="tab" data-tab="batch" aria-selected="false">Batch</button>
+  <button role="tab" class="tab" data-tab="caps" aria-selected="false">Capabilities</button>
+</nav>
+
+<main>
+
+<!-- ══════════════════════════════════════════════ TEXT ══ -->
+<section class="panel" id="tab-text" role="tabpanel">
+
+  <div class="split">
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Source</h2>
+        <span class="pane-meta" id="src-count">0 characters</span>
+      </div>
+      <textarea id="src" spellcheck="false"
+        placeholder="Paste text here to see what is hiding in it."></textarea>
+    </div>
+
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Cleaned</h2>
+        <span class="pane-meta" id="out-count">—</span>
+        <button class="mini" id="copy-out" type="button">Copy</button>
+      </div>
+      <textarea id="out" spellcheck="false" readonly
+        placeholder="Clean the source to fill this pane."></textarea>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btn-inspect" type="button">Inspect</button>
+    <button class="btn" id="btn-clean" type="button">Clean</button>
+    <button class="btn" id="btn-rewrite-open" type="button">Rewrite<span class="chev">›</span></button>
+    <label class="check"><input type="checkbox" id="opt-aggressive"> Aggressive
+      <span class="hint" title="Also fold Cyrillic, Greek, and fullwidth Latin lookalikes to ASCII.">?</span></label>
+    <label class="check"><input type="checkbox" id="opt-glue"> Strip emoji glue
+      <span class="hint" title="Removes joiners that emoji sequences and Persian, Devanagari, and Khmer text depend on. This will break those.">?</span></label>
+    <label class="check"><input type="checkbox" id="opt-nfkc"> NFKC
+      <span class="hint" title="Apply Unicode NFKC normalization after cleaning.">?</span></label>
+  </div>
+
+  <!-- Signature element: the reveal -->
+  <div class="reveal-block" id="reveal-block" hidden>
+    <div class="section-head">
+      <h3>Reveal</h3>
+      <p>Every hidden character, materialized where it sits.</p>
+    </div>
+    <div class="ruler" id="ruler" aria-hidden="true"></div>
+    <div class="reveal" id="reveal"></div>
+  </div>
+
+  <div class="findings-block" id="findings-block" hidden>
+    <div class="section-head">
+      <h3>Findings</h3>
+      <p id="findings-summary"></p>
+    </div>
+    <div class="table-wrap">
+      <table class="data" id="findings">
+        <thead><tr>
+          <th>Codepoint</th><th>Name</th><th>Kind</th>
+          <th class="num">Count</th><th class="num">Kept</th><th>Offsets</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="diff-block" id="diff-block" hidden>
+    <div class="section-head">
+      <h3>Diff</h3>
+      <p>Struck text was removed. Boxed text was substituted.</p>
+    </div>
+    <div class="diff" id="diff"></div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════ FILES ══ -->
+<section class="panel" id="tab-files" role="tabpanel" hidden>
+
+  <div class="drop" id="drop" tabindex="0" role="button"
+       aria-label="Drop a file here or press Enter to browse">
+    <div class="drop-inner">
+      <span class="drop-mark" aria-hidden="true">◍</span>
+      <p class="drop-title">Drop a file to inspect it</p>
+      <p class="drop-sub">PNG · JPEG · WebP · SVG · PDF · DOCX · ODT · HTML · Markdown · TXT</p>
+      <button class="btn" type="button" id="browse">Choose a file</button>
+    </div>
+    <input type="file" id="file-input" hidden>
+  </div>
+
+  <div id="file-result" hidden>
+    <div class="filecard">
+      <div class="filecard-head">
+        <div>
+          <h3 id="f-name">—</h3>
+          <p class="pane-meta"><span id="f-format"></span> · <span id="f-size"></span></p>
+        </div>
+        <div class="filecard-actions">
+          <button class="btn btn-primary" id="btn-file-clean" type="button">Clean and download</button>
+        </div>
+      </div>
+      <div class="verdict" id="f-verdict"></div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <div class="section-head"><h3>Metadata</h3><p id="f-meta-sub"></p></div>
+        <ul class="findlist" id="f-meta"></ul>
+      </div>
+      <div class="section">
+        <div class="section-head"><h3>Invisible characters</h3><p id="f-la-sub"></p></div>
+        <ul class="findlist" id="f-la"></ul>
+      </div>
+    </div>
+
+    <div class="section" id="f-after-block" hidden>
+      <div class="section-head"><h3>After cleaning</h3><p>What changed in the file you downloaded.</p></div>
+      <ul class="findlist" id="f-after"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ BATCH ══ -->
+<section class="panel" id="tab-batch" role="tabpanel" hidden>
+  <div class="drop drop-slim" id="drop-batch" tabindex="0" role="button"
+       aria-label="Drop files here or press Enter to browse">
+    <p class="drop-title">Drop several files</p>
+    <button class="btn" type="button" id="browse-batch">Choose files</button>
+    <input type="file" id="file-input-batch" multiple hidden>
+  </div>
+
+  <div class="batch-bar" id="batch-bar" hidden>
+    <button class="btn btn-primary" id="btn-clean-all" type="button">Clean all</button>
+    <button class="btn" id="btn-clear-batch" type="button">Clear</button>
+    <div class="progress"><div class="progress-fill" id="progress-fill"></div></div>
+    <span class="pane-meta" id="progress-text">—</span>
+  </div>
+
+  <div class="table-wrap" id="batch-wrap" hidden>
+    <table class="data" id="batch-table">
+      <thead><tr>
+        <th>File</th><th>Format</th><th class="num">Metadata</th>
+        <th class="num">Invisible</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ CAPABILITIES ══ -->
+<section class="panel" id="tab-caps" role="tabpanel" hidden>
+  <div class="section-head">
+    <h3>Optional tools</h3>
+    <p>The core service runs without any of these. Each one extends what it can do.</p>
+  </div>
+  <div class="cards" id="caps-tools"></div>
+
+  <div class="section-head">
+    <h3>Heavy backends</h3>
+    <p>Separate containers, built locally, invoked on demand.</p>
+  </div>
+  <div class="cards" id="caps-backends"></div>
+
+  <div class="section-head"><h3>Limits and formats</h3><p></p></div>
+  <div class="cards" id="caps-misc"></div>
+
+  <div class="section-head">
+    <h3>API</h3>
+    <p>The same endpoints this page uses. <a href="/openapi.json" target="_blank" rel="noopener">Raw spec</a></p>
+  </div>
+  <div class="spec" id="spec"></div>
+</section>
+
+</main>
+
+<!-- ════════════════════════════════════ REWRITE DRAWER ══ -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Rewrite settings">
+  <div class="drawer-head">
+    <h2>Rewrite</h2>
+    <button class="mini" id="drawer-close" type="button" aria-label="Close">✕</button>
+  </div>
+
+  <p class="drawer-note">
+    Layer A removes characters. This does something different: it sends your text
+    to a second model and keeps that model's wording. Token-sampling watermarks
+    live in the first model's word choices, so they do not survive the trip.
+    Use a model from a different vendor than the one that wrote the text.
+  </p>
+
+  <label class="field">
+    <span>Backend</span>
+    <select id="rw-backend">
+      <option value="print-prompt">Print prompt only (no model call)</option>
+      <option value="ollama">Ollama</option>
+      <option value="openai-compatible">OpenAI-compatible endpoint</option>
+    </select>
+  </label>
+
+  <label class="field">
+    <span>Model</span>
+    <input type="text" id="rw-model" value="llama3.1" spellcheck="false">
+  </label>
+
+  <label class="field">
+    <span>Base URL</span>
+    <input type="text" id="rw-url" value="http://127.0.0.1:11434" spellcheck="false">
+  </label>
+
+  <label class="field">
+    <span>API key <em>optional</em></span>
+    <input type="password" id="rw-key" autocomplete="off" spellcheck="false"
+           placeholder="held in memory for this tab only">
+  </label>
+
+  <label class="field">
+    <span>Strength</span>
+    <select id="rw-strength">
+      <option value="paraphrase">Paraphrase — different wording, same shape</option>
+      <option value="humanize">Humanize — different rhythm, no AI tells</option>
+      <option value="code">Code — comments and locals only, behavior preserved</option>
+      <option value="backtranslate">Backtranslate — through a pivot language</option>
+      <option value="structural">Structural — outline, then rewrite from it</option>
+    </select>
+  </label>
+
+  <label class="field">
+    <span>Temperature <output id="rw-temp-val">0.9</output></span>
+    <input type="range" id="rw-temp" min="0" max="2" step="0.1" value="0.9">
+  </label>
+
+  <label class="field">
+    <span>Candidates <output id="rw-cand-val">1</output></span>
+    <input type="range" id="rw-cand" min="1" max="5" step="1" value="1">
+    <em class="field-note">Generate several, keep the one that diverges most.</em>
+  </label>
+
+  <label class="check drawer-check">
+    <input type="checkbox" id="rw-remote"> Allow a non-loopback endpoint
+    <em class="field-note">Your text leaves this machine.</em>
+  </label>
+
+  <label class="check drawer-check">
+    <input type="checkbox" id="rw-layer-a" checked> Clean the output with Layer A
+  </label>
+
+  <div class="drawer-actions">
+    <button class="btn" id="rw-preview" type="button">Preview prompt</button>
+    <button class="btn btn-primary" id="rw-run" type="button">Rewrite</button>
+  </div>
+
+  <div id="rw-out-block" hidden>
+    <div class="section-head">
+      <h3>Result</h3>
+      <p id="rw-stats"></p>
+    </div>
+    <pre class="preview" id="rw-out"></pre>
+    <div class="drawer-actions">
+      <button class="btn btn-primary" id="rw-accept" type="button">Use this text</button>
+      <button class="btn" id="rw-discard" type="button">Discard</button>
+    </div>
+    <ul class="notes" id="rw-notes"></ul>
+  </div>
+</aside>
+
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wmtk"
+version = "1.0.0"
+description = "Detect and remove AI watermarks from text and files"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# No runtime dependencies, deliberately. The core is stdlib-only so it can run
+# anywhere Python does and so the container stays small.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+wmtk-server = "wmtk.server:main"
+wmtk-inspect-text = "wmtk.cli.inspect_text:main"
+wmtk-clean-text = "wmtk.cli.clean_text:main"
+wmtk-rewrite-text = "wmtk.cli.rewrite_text:main"
+wmtk-clean-file = "wmtk.cli.clean_file:main"
+wmtk-detect-watermark = "wmtk.cli.detect_text_watermark:main"
+
+[tool.setuptools]
+packages = ["wmtk", "wmtk.cli", "wmtk.metadata"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:wmtk.*"]
+
+[tool.coverage.run]
+source = ["wmtk"]
+omit = ["wmtk/cli/detect_text_watermark.py"]  # needs torch, exercised separately
+
+[tool.ruff]
+line-length = 96
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM", "RUF"]
+ignore = [
+  "S101",    # assert: used throughout the tests
+  "E501",    # long lines are caught by the formatter
+  "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "RUF001", "RUF003"]
+# The Unicode tables must contain the exact confusable characters they describe.
+"wmtk/unicode_tables.py" = ["RUF001", "RUF003"]

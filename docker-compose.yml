@@ -1,0 +1,94 @@
+# Core service plus optional heavy backends.
+#
+#   docker compose up -d wmtk              # the service and the UI
+#   docker compose run --rm markllm ...    # one-shot detection
+#
+# The heavy images are large (multi-GB, CUDA optional) and are built locally on
+# demand. They are never pushed to a registry.
+
+services:
+
+  wmtk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wmtk:local
+    container_name: wmtk
+    # Published to loopback only. The container itself binds 0.0.0.0, which is
+    # why WATERMARKS_ALLOW_INSECURE_BIND is set below.
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      WATERMARKS_ALLOW_INSECURE_BIND: "1"
+      # Uncomment to require a bearer token on every endpoint but /health.
+      # WATERMARKS_SERVER_API_KEY: "${WATERMARKS_SERVER_API_KEY:-}"
+      WATERMARKS_MAX_INPUT_BYTES: "268435456"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ─────────────────────────────────────────── optional heavy backends
+  # Each is a one-shot CLI, not a long-running service. Invoke with
+  # `docker compose run --rm <name> <args>`.
+
+  markllm:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.markllm
+    image: wmtk-markllm:local
+    profiles: ["heavy"]
+    volumes:
+      - ./work:/work
+      - hf-cache:/home/wmtk/.cache/huggingface
+    environment:
+      HF_HUB_OFFLINE: "${HF_HUB_OFFLINE:-0}"
+    entrypoint: ["python", "-m", "wmtk.cli.detect_text_watermark"]
+    command: ["--help"]
+
+  synthid:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.synthid
+    image: wmtk-synthid:local
+    profiles: ["heavy"]
+    volumes:
+      - ./work:/work
+      - hf-cache:/home/wmtk/.cache/huggingface
+    entrypoint: ["python", "-m", "wmtk.cli.detect_text_watermark",
+                 "--scheme", "synthid"]
+    command: ["--help"]
+
+  ctrlregen:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ctrlregen
+    image: wmtk-ctrlregen:local
+    profiles: ["heavy"]
+    volumes:
+      - ./work:/work
+      - hf-cache:/home/wmtk/.cache/huggingface
+    # Pixel-domain watermark removal by regeneration. Needs a GPU to be
+    # practical; uncomment to pass one through.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    command: ["--help"]
+
+volumes:
+  hf-cache:
