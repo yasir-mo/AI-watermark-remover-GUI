@@ -244,8 +244,8 @@ def classify(cp: int, aggressive: bool = False) -> Classification | None:
         return Classification(KIND_SPACE, " ", "informational")
 
     if _in(cp, ZWJ_FAMILY):
-        # U+200E/U+200F are directional marks, not joiners; label them bidi so
-        # the report reads honestly.
+        # U+200E and U+200F are directional marks, so label them bidi and let
+        # the report say so.
         kind = KIND_BIDI if cp in (0x200E, 0x200F) else KIND_ZWJ
         return Classification(kind, "", "probable")
 

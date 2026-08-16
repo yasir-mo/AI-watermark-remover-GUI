@@ -137,8 +137,8 @@ def _replace_with_retry(tmp: str, dest: Path) -> None:
 
     Retrying does not weaken atomicity: the swap still either happens whole or
     not at all, and no reader ever observes a partial file. The bound is a
-    wall-clock deadline rather than an attempt count so that a slow machine
-    does not fail where a fast one succeeds.
+    wall-clock deadline instead of an attempt count, so a slow machine behaves
+    the same as a fast one.
     """
     deadline = time.monotonic() + REPLACE_DEADLINE
     backoff = 0.005

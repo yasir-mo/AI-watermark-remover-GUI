@@ -1,5 +1,5 @@
 # Core service. Stdlib-only Python plus the three optional CLI tools.
-# No pip install of anything: the whole point is that the core has no deps.
+# No pip install of anything: the core has no third-party dependencies.
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # A container has to bind 0.0.0.0 to be reachable through a port mapping,
     # and the mapping (compose publishes to 127.0.0.1) is the actual boundary.
     # The server refuses a non-loopback bind without this acknowledgement, so
-    # state it here rather than leaving the image unable to start.
+    # set it here so the image can start.
     WATERMARKS_ALLOW_INSECURE_BIND=1
 
 # exiftool and qpdf come from Debian. c2patool is a Rust binary fetched from

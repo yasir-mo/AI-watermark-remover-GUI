@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wmtk — strip AI watermarks from text</title>
+<title>wmtk: strip AI watermarks from text</title>
 <meta name="description" content="Remove invisible Unicode watermarks and displace statistical token-sampling watermarks. Runs entirely in your browser.">
 
-<!-- This page exists to be shared, so give it something to unfurl into. -->
+<!-- Metadata for link previews when the page is shared. -->
 <link rel="canonical" href="https://yasir-mo.github.io/AI-watermark-remover-GUI/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="wmtk">
-<meta property="og:title" content="wmtk — strip AI watermarks from text">
-<meta property="og:description" content="Find and remove invisible Unicode characters hidden in text, then rewrite through a second model to displace statistical watermarks. No account, no upload, no server — it runs in your browser.">
+<meta property="og:title" content="wmtk: strip AI watermarks from text">
+<meta property="og:description" content="Find and remove invisible Unicode characters hidden in text, then rewrite through a second model to displace statistical watermarks. No account, no upload, and no server. It runs in your browser.">
 <meta property="og:url" content="https://yasir-mo.github.io/AI-watermark-remover-GUI/">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="wmtk — strip AI watermarks from text">
+<meta name="twitter:title" content="wmtk: strip AI watermarks from text">
 <meta name="twitter:description" content="Invisible Unicode watermarks, revealed and removed in your browser. Bring your own key for the rewrite layer, or use it with no key at all.">
 
 <!-- No server, and the page handles API keys, so script injection is the only
@@ -24,7 +24,7 @@
 <!-- connect-src must allow plain http to loopback: the "custom OpenAI-compatible"
      provider exists so people can point at Ollama, LM Studio or llama.cpp on
      their own machine, and those serve http://localhost. A bare `https:` here
-     silently blocked that, and the failure surfaced as a generic network error.
+     blocked that, and the failure surfaced as a generic network error.
      Loopback is not a meaningful exfiltration path.
      frame-ancestors is deliberately absent: it is ignored in a <meta> CSP, and
      GitHub Pages cannot set response headers, so listing it would only imply a
@@ -74,7 +74,7 @@
 
   <p class="lede">
     Invisible characters embedded in text survive copy and paste but never show
-    up on screen. This finds them and takes them out — entirely on your machine,
+    up on screen. This finds them and takes them out, entirely on your machine,
     with no key and no upload.
   </p>
 
@@ -92,7 +92,7 @@
     <div class="pane">
       <div class="pane-head">
         <h2>Cleaned</h2>
-        <span class="pane-meta" id="out-count">—</span>
+        <span class="pane-meta" id="out-count">not cleaned yet</span>
         <button class="mini" id="copy-out" type="button">Copy</button>
       </div>
       <textarea id="out" spellcheck="false" readonly
@@ -145,9 +145,9 @@
 
   <p class="lede">
     Some models bias their own token sampling with a secret key, so the
-    watermark <em>is</em> the word choices. Nothing can be deleted. Instead a
-    second model rewrites the prose from its own distribution, and the original
-    pattern does not carry over.
+    watermark is the word choices, so there is nothing to delete. A second model
+    rewrites the prose from its own distribution, and the original pattern does
+    not carry over.
   </p>
 
   <div class="mode-picker" role="radiogroup" aria-label="Rewrite mode">
@@ -234,8 +234,8 @@
       </div>
     </div>
     <div class="callout">
-      A model this small is a weak paraphraser — it shows the mechanism rather
-      than Layer B at its best. For real work, a free-tier key with a large
+      A model this small is a weak paraphraser. It shows the mechanism without
+      showing Layer B at its best. For real work, a free-tier key with a large
       model gives far better results.
     </div>
   </div>
@@ -273,7 +273,7 @@
     <div class="pane">
       <div class="pane-head">
         <h2>Rewritten</h2>
-        <span class="pane-meta" id="rw-out-count">—</span>
+        <span class="pane-meta" id="rw-out-count">no result yet</span>
         <button class="mini" id="rw-copy" type="button">Copy</button>
       </div>
       <textarea id="rw-out" spellcheck="false" readonly
@@ -310,8 +310,8 @@
     <div class="callout">
       <strong>These “after” texts are written by hand to illustrate the goal of
       each setting.</strong> They are not model output and this page does not
-      pretend otherwise. The divergence score under each one <em>is</em> real —
-      computed live by the same function that scores an actual rewrite.
+      pretend otherwise. The divergence score under each one is real, computed
+      live by the same function that scores an actual rewrite.
     </div>
     <div id="examples-list"></div>
   </div>
@@ -331,7 +331,7 @@
   <div class="prose">
     <h3>Two different problems</h3>
     <p>
-      <strong>Layer A — invisible characters.</strong> Zero-width spaces,
+      <strong>Layer A, invisible characters.</strong> Zero-width spaces,
       joiners, bidi controls, variation selectors and Unicode tag characters can
       be embedded in text without showing on screen. Tag characters can carry a
       whole hidden string. Removing them is deterministic and lossless: they are
@@ -339,7 +339,7 @@
       the scan again. This runs in your browser, in JavaScript, with no key.
     </p>
     <p>
-      <strong>Layer B — statistical watermarks.</strong> A model can bias its
+      <strong>Layer B, statistical watermarks.</strong> A model can bias its
       own token sampling with a secret key. Kirchenbauer's KGW scheme hashes
       preceding tokens to split the vocabulary into a green list and a red list,
       then nudges green tokens upward. Google's SynthID-Text runs a tournament
@@ -356,13 +356,13 @@
         watermark; it does not prove absence. It is weaker against
         paragraph-level schemes such as SemStamp and PostMark than against the
         token-level ones currently deployed. Nothing here makes text
-        “undetectable”, and this page will not tell you otherwise.
+        “undetectable”.
       </li>
       <li>
         <strong>Rewriting costs quality.</strong> If you would rewrite with a
         cheaper model anyway, generating with that model directly is simpler.
-        Layer B earns its place when you wanted a stronger model's reasoning and
-        will spend a paraphrase pass on hygiene.
+        Layer B is useful when you wanted a stronger model's reasoning and will
+        spend a paraphrase pass on hygiene.
       </li>
       <li>
         <strong>Use a different vendor.</strong> Rewriting Claude output with
@@ -377,7 +377,7 @@
     <h3>Where your data goes</h3>
     <p>
       Layer A never leaves your browser. Layer B sends your text to whichever
-      provider you choose, using your key, directly — this site has no backend
+      provider you choose, using your key, directly. This site has no backend
       to route it through. The opt-in in-browser model sends nothing anywhere,
       but downloads model weights from a CDN on first use.
     </p>

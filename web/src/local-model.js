@@ -2,16 +2,16 @@
  *
  * Everything here is behind an explicit click. Nothing is downloaded, and no
  * third-party script is loaded, until the visitor asks for it -- which is why
- * this is a dynamic import rather than a top-level one.
+ * this is a dynamic import instead of a top-level one.
  *
- * Honest about the trade-off, and the UI repeats it: a ~0.5-1B model is a weak
- * paraphraser. It demonstrates the mechanism rather than showing Layer B at
- * its best. A real key with a 70B free model is substantially better.
+ * The UI states the trade-off too: a 0.5B to 1B model is a weak paraphraser.
+ * It demonstrates the mechanism without showing Layer B at its best. A free
+ * key with a 70B model gives substantially better output.
  */
 
 // Pinned version and integrity-checked origin. Loading a script from a CDN on
 // a page that handles API keys is the one place a supply-chain problem would
-// hurt, so the version is fixed rather than floating on @latest.
+// hurt, so the version is pinned instead of floating on @latest.
 const TRANSFORMERS_URL =
   'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
 
@@ -112,7 +112,7 @@ export async function loadLocalModel(modelId, onProgress = () => {}) {
   try {
     return await pipelinePromise;
   } catch (e) {
-    // Let the next attempt retry from scratch rather than caching the failure.
+    // Clear the cache so the next attempt retries from scratch.
     pipelinePromise = null;
     loadedModelId = null;
     throw e;

@@ -33,7 +33,7 @@ class TestSizeCaps:
             check_size(b"x" * 11, limit=10)
 
     def test_measures_encoded_length_for_text(self):
-        """A 5-character string of 4-byte codepoints is 20 bytes, not 5."""
+        """A 5-character string of 4-byte codepoints measures 20 bytes."""
         with pytest.raises(InputTooLarge):
             check_size("\U0001f600" * 5, limit=10)
 
@@ -69,7 +69,7 @@ class TestBinaryGuard:
         assert ensure_text(b"%PDF-1.7", force=True).startswith("%PDF")
 
     def test_lone_surrogates_round_trip(self):
-        raw = b"caf\xe9 latte"  # latin-1, not valid UTF-8
+        raw = b"caf\xe9 latte"  # latin-1, which is invalid UTF-8
         text = ensure_text(raw)
         assert text.encode("utf-8", "surrogateescape") == raw
 
@@ -111,8 +111,8 @@ class TestAtomicWrite:
 
         def reader() -> None:
             # A real reader does not spin at 100%. A zero-delay loop can starve
-            # the Windows rename indefinitely, which tests the scheduler rather
-            # than the atomicity property this case is about.
+            # the Windows rename indefinitely, which would measure the scheduler
+            # instead of the atomicity property this case is about.
             while not stop.is_set():
                 with contextlib.suppress(OSError):
                     seen.append(dest.read_bytes())
@@ -123,7 +123,7 @@ class TestAtomicWrite:
         # Enough cycles to catch a torn read, few enough that the Windows
         # rename retry is not fighting a saturated CPU. An earlier 30-cycle
         # version failed only when the whole suite shared a core with a
-        # browser, which tested the scheduler rather than atomicity.
+        # browser, which measured the scheduler instead of atomicity.
         for _ in range(12):
             atomic_write_bytes(dest, new)
             atomic_write_bytes(dest, old)

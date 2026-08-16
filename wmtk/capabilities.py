@@ -23,7 +23,7 @@ TOOLS: dict[str, dict[str, str]] = {
         "install": "cargo install c2patool  |  download from github.com/contentauth/c2patool/releases",
     },
     "qpdf": {
-        "enables": "Structural PDF rebuild so metadata bytes are actually removed, not orphaned.",
+        "enables": "Structural PDF rebuild, so the metadata bytes leave the file.",
         "install": "apt install qpdf  |  brew install qpdf  |  winget install qpdf.qpdf",
     },
 }

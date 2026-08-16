@@ -1,5 +1,5 @@
 # THU-BPM/MarkLLM detection harness. Local build only, never published.
-# MarkLLM is Apache-2.0 and is cloned at build time, not vendored in this repo.
+# MarkLLM is Apache-2.0 and is cloned at build time. It is not vendored here.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \

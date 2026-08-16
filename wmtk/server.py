@@ -463,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     if not is_local and not api_key:
         # A container binds 0.0.0.0 by design and relies on the port mapping
         # (127.0.0.1:8765:8765) to stay private. That is a legitimate setup, but
-        # it must be stated rather than assumed, because the same bind on a host
+        # it has to be stated explicitly, because the same bind on a host
         # exposes the service to the whole network.
         if os.environ.get("WATERMARKS_ALLOW_INSECURE_BIND") == "1":
             LOG.warning(

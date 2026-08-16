@@ -1,6 +1,6 @@
-/* wmtk — forensic examination surface.
+/* wmtk styles: a forensic examination surface.
    The subject is codepoint notation, so monospace is the display face.
-   Colour is a taxonomy, not decoration: each finding kind owns one hue. */
+   Colour is a taxonomy: each finding kind owns one hue. */
 
 :root {
   --paper:      #F3F1F7;
@@ -69,8 +69,8 @@
 * { box-sizing: border-box; }
 
 /* The `hidden` attribute is only `display:none` in the UA stylesheet, so any
-   author rule that sets `display` (a .split grid, a .controls flex) silently
-   beats it and the element stays on screen. Make hidden actually hidden. */
+   author rule that sets `display` (a .split grid, a .controls flex) beats it
+   and the element stays on screen. This makes hidden take effect. */
 [hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -693,7 +693,7 @@ table.data .num { text-align: right; }
   padding-left: 14px; position: relative; margin-bottom: 7px;
 }
 .notes li::before {
-  content: "—"; position: absolute; left: 0; color: var(--faint);
+  content: "3"; position: absolute; left: 0; color: var(--faint);
 }
 
 /* ──────────────────────────────────────────────────────── toast */

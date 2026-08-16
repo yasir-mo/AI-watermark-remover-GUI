@@ -1,6 +1,6 @@
 /* Provider registry.
  *
- * Adding a provider is a data edit, not a code change.
+ * Adding a provider is a data edit.
  *
  * `browserDirect` is the field that matters for the hosted demo. The static
  * site calls providers straight from the page with the visitor's own key, so a
@@ -8,7 +8,7 @@
  * Together do not (verified by preflight, 2026-08-15) -- they work fine in the
  * local Python app, where the server makes the call and CORS never applies.
  *
- * Keys never reach any server of ours. There is no server.
+ * Keys never reach a server belonging to this project. There is no server.
  */
 
 export const PROVIDERS = [
@@ -116,8 +116,7 @@ export const PROVIDERS = [
 
   /* ── Not reachable from a browser ──────────────────────────────────────
    * These send no CORS headers, so the page cannot call them. They are listed
-   * so the UI can explain why rather than fail mysteriously, and to point at
-   * the local app where they do work.
+   * so the UI can explain why, and point at the local app where they do work.
    */
   {
     id: 'groq',

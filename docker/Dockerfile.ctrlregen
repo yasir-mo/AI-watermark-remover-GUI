@@ -1,7 +1,7 @@
 # CtrlRegen: pixel-domain watermark removal by controlled regeneration.
 #
 # This is the only backend that touches watermarks encoded in image pixels
-# rather than in metadata. Metadata stripping does not affect them at all.
+# instead of in metadata. Metadata stripping does not affect them at all.
 #
 # Weights are NOT baked in. Mount them at /weights, or let the entrypoint pull
 # them into the shared HF cache on first run.

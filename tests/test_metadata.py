@@ -195,7 +195,7 @@ class TestPdf:
         assert b"ChatGPT" not in out
         assert b"xpacket" not in out
         assert any("degraded" in w for w in result.warnings), (
-            "the degraded tier must say so rather than imply a clean removal"
+            "the degraded tier must say so, so users do not read it as a clean removal"
         )
 
     def test_tier_reported_matches_tools(self, monkeypatch):
@@ -365,7 +365,7 @@ class TestExiftoolReportFiltering:
         ],
     )
     def test_structural_properties_are_not_findings(self, group, name):
-        """A cleaned PNG must report zero findings, not its own dimensions."""
+        """A cleaned PNG must report zero findings. Its dimensions are not metadata."""
         from wmtk.metadata import _exiftool_kind
 
         assert _exiftool_kind(group, name) is None, f"{group}:{name} should be ignored"

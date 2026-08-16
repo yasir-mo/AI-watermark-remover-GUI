@@ -56,7 +56,7 @@ for (const c of vectors.cases) {
     );
 
     // `name` is compared too: the browser labels findings from a generated
-    // table rather than the full UCD, and a missing entry would show
+    // table instead of the full UCD, and a missing entry would show
     // "<unnamed>" where the CLI shows a real Unicode name.
     const mine = got.findings.map((f) => ({
       codepoint: f.codepoint,

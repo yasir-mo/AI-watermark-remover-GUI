@@ -6,11 +6,10 @@ Pulling in ``defusedxml`` would break the stdlib-only promise, so instead we
 reject the constructs that make those attacks possible *before* handing bytes
 to the parser.
 
-Rejecting at the byte level rather than through expat handlers is deliberate:
-``ET.XMLParser`` stopped exposing its underlying expat object in Python 3.14,
-so a handler-based guard silently does nothing there. A guard that quietly
-fails open is worse than no guard, so this one does not depend on interpreter
-internals.
+The check happens at the byte level, before any parsing. ``ET.XMLParser``
+stopped exposing its underlying expat object in Python 3.14, so a
+handler-based guard has no effect there and permits everything it was meant to
+block. This check does not depend on interpreter internals.
 
 Well-formed SVG and Office documents never declare entities, so nothing
 legitimate is rejected.
@@ -28,8 +27,8 @@ class UnsafeXml(ValueError):
     """The document contains a DTD construct we refuse to process."""
 
 
-#: Only the prolog can carry a DTD, but a document can be padded, so scan a
-#: generous window rather than just the first few bytes.
+#: Only the prolog can carry a DTD, but a document can be padded, so the scan
+#: covers a generous window.
 _PROLOG_WINDOW = 128 * 1024
 
 _ENTITY_DECL_RE = re.compile(rb"<!\s*ENTITY\b", re.I)

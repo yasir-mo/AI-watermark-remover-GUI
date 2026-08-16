@@ -1,8 +1,8 @@
 /* Worked examples for visitors without an API key.
  *
- * HONESTY NOTE, and the UI states this too: the "after" texts are written by
- * hand to illustrate what each rewrite strength aims for. They are NOT model
- * output, and the page does not claim they are. What IS real:
+ * The UI states this as well: the "after" texts are written by hand to
+ * illustrate what each rewrite strength aims for. They are not model output,
+ * and the page does not claim they are. What is real:
  *
  *   - the divergence score, computed live by the same function that scores a
  *     genuine rewrite (see rewrite.js)
@@ -117,8 +117,7 @@ export const EXAMPLES = [
 ];
 
 /* Text carrying real invisible watermarks, for the Layer A demo. Built at
- * runtime so the characters are unambiguously present rather than something a
- * reader has to take on trust. */
+ * runtime so the characters are unambiguously present. */
 export function watermarkedSample() {
   const tag = (s) =>
     [...s].map((ch) => String.fromCodePoint(0xe0000 + ch.codePointAt(0))).join('');
@@ -126,7 +125,7 @@ export function watermarkedSample() {
     'Quarterly​ Report' + tag('ID:4471') + '\n\n' +
     'Revenue rose 12% this⁠ quarter.­ The board approved​ the ' +
     'budget﻿ on Tuesday.\n\n' +
-    'Prepared by the finance team \u{1F469}‍\u{1F4BC} — contact us with questions.'
+    'Prepared by the finance team \u{1F469}‍\u{1F4BC}. Contact us with questions.'
   );
 }
 

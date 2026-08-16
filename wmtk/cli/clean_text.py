@@ -44,7 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     if args.in_place and args.path == "-":
-        print("error: --in-place needs a file path, not stdin", file=sys.stderr)
+        print(
+            "error: --in-place needs a file path; stdin cannot be edited in place",
+            file=sys.stderr,
+        )
         return 2
     if args.in_place and args.output:
         print("error: --in-place and --output are mutually exclusive", file=sys.stderr)

@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
    in sessionStorage only, so it dies with the tab. */
 let SERVICE_TOKEN = sessionStorage.getItem('wmtk_token') || '';
 
-/* Rewrite-backend key. Memory only — never persisted, never logged. */
+/* Rewrite-backend key. Held in memory only. Never persisted, never logged. */
 let REWRITE_KEY = '';
 
 /* ────────────────────────────────────────────────────── plumbing */
@@ -35,7 +35,7 @@ async function api(path, body) {
       if (t) { SERVICE_TOKEN = t; sessionStorage.setItem('wmtk_token', t); return api(path, body); }
     }
     const msg = (data && data.error) || `HTTP ${resp.status}`;
-    const detail = (data && data.detail) ? ` — ${data.detail}` : '';
+    const detail = (data && data.detail) ? `: ${data.detail}` : '';
     throw new Error(msg + detail);
   }
   return data;
@@ -446,7 +446,7 @@ function renderFileReport(r) {
 
   const s = r.summary;
   const v = $('f-verdict');
-  // Colour on findings_present, not watermark_suspected: a file carrying an
+  // Colour on findings_present. A file carrying an
   // author name has something to strip even though it carries no watermark.
   v.className = 'verdict ' + (s.findings_present ? 'hit' : 'clear');
   const parts = [];
@@ -485,7 +485,7 @@ function renderFileReport(r) {
       laList.appendChild(findItem(
         f.kind,
         `${f.codepoint} ${f.name} ×${f.count}` +
-        (f.kept_as_load_bearing ? ` (${f.kept_as_load_bearing} kept — text needs them)` : '')
+        (f.kept_as_load_bearing ? ` (${f.kept_as_load_bearing} kept, text needs them)` : '')
       ));
     }
   } else {
@@ -493,7 +493,7 @@ function renderFileReport(r) {
       ? 'not scanned'
       : 'not applicable to this format';
     laList.appendChild(emptyItem(
-      r.is_text_format ? '—' : 'Binary format. Layer A applies to text only.'
+      r.is_text_format ? 'not scanned' : 'Binary format. Layer A applies to text only.'
     ));
   }
 }
@@ -568,7 +568,7 @@ $('browse-batch').addEventListener('click', (e) => {
 
 async function addBatch(files) {
   for (const file of files) {
-    batch.push({ file, status: 'pending', meta: '—', inv: '—', cleaned: null });
+    batch.push({ file, status: 'pending', meta: '?', inv: '?', cleaned: null });
   }
   $('batch-bar').hidden = false;
   $('batch-wrap').hidden = false;
@@ -629,7 +629,7 @@ function renderBatch() {
 
     const f = document.createElement('td');
     f.className = 'offsets';
-    f.textContent = row.format || '—';
+    f.textContent = row.format || '?';
     tr.appendChild(f);
 
     const m = document.createElement('td');
@@ -674,7 +674,7 @@ function renderBatch() {
   $('progress-fill').style.width = pct + '%';
   $('progress-text').textContent = batch.length
     ? `${done} of ${batch.length} cleaned`
-    : '—';
+    : 'no files queued';
 }
 
 $('btn-clean-all').addEventListener('click', async () => {
@@ -840,7 +840,7 @@ async function loadCapabilitiesTab() {
       {
         name: 'PDF handling', on: c.pdf_tier !== 'stdlib', state: c.pdf_tier,
         body: c.pdf_tier === 'exiftool+qpdf'
-          ? 'Structural rebuild. Metadata bytes are removed from the file, not just unlinked.'
+          ? 'Structural rebuild. The metadata bytes leave the file.'
           : c.pdf_tier === 'exiftool'
             ? 'Incremental edit. Old metadata can remain in the file unreferenced. Install qpdf for a full rebuild.'
             : 'Regex fallback. Metadata inside object streams is out of reach. Install exiftool and qpdf.',
@@ -935,7 +935,7 @@ function renderCards(host, items) {
       const el = document.createElement('span');
       el.className = 'lamp' + (on ? ' on' : '');
       el.textContent = name;
-      el.title = on ? `${name} is available` : `${name} is not installed — see Capabilities`;
+      el.title = on ? `${name} is available` : `${name} is not installed. See Capabilities`;
       lamps.appendChild(el);
     }
   } catch (e) {

@@ -3,11 +3,11 @@
  * This is a hand port of wmtk/layer_a.py and wmtk/unicode_tables.py. The
  * Python side is the reference implementation; the codepoint tables here are
  * GENERATED from it (see tables.js) and both runtimes are pinned to the same
- * conformance vectors, so a divergence fails CI instead of shipping quietly.
+ * conformance vectors, so a divergence fails CI before it can ship.
  *
  * If you change classification behaviour, change it in Python first.
  *
- * Everything below operates on codepoints, not UTF-16 units, so astral
+ * Everything below operates on codepoints instead of UTF-16 units, so astral
  * characters (emoji, supplementary tags and variation selectors) are handled
  * as single characters exactly as Python does.
  */
@@ -74,7 +74,7 @@ export function classify(cp, aggressive = false) {
     return { kind: KIND_SPACE, replacement: ' ', confidence: 'informational' };
   }
   if (inRanges(cp, ZWJ_FAMILY)) {
-    // U+200E/U+200F are directional marks, not joiners.
+    // U+200E and U+200F are directional marks. They are labelled bidi.
     const kind = cp === 0x200e || cp === 0x200f ? KIND_BIDI : KIND_ZWJ;
     return { kind, replacement: '', confidence: 'probable' };
   }
@@ -131,10 +131,10 @@ export function isLoadBearing(chars, index) {
     return 'emoji_sequence';
   }
 
-  // Tag-sequence flags. Walk back over the whole tag run to find its anchor:
-  // a run only counts if it *starts* after an emoji base. Without the
-  // walk-back, a smuggled payload would shield itself from its second
-  // character onward, since each tag's predecessor is itself a tag.
+  // Tag-sequence flags. Walk back over the whole tag run to find its anchor.
+  // A run only counts if it starts after an emoji base. Without the walk-back,
+  // each tag character after the first looks legitimate, because its
+  // predecessor is also a tag character.
   if (inRanges(cp, TAG_CHARS)) {
     let j = index - 1;
     while (j >= 0 && inRanges(chars[j].codePointAt(0), TAG_CHARS)) j--;

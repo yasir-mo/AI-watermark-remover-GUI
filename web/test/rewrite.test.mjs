@@ -184,7 +184,7 @@ test('non-http endpoints are refused', async () => {
   );
 });
 
-test('a missing endpoint is reported, not silently ignored', async () => {
+test('a missing endpoint raises instead of being ignored', async () => {
   await assert.rejects(
     rewrite(SAMPLE, { provider: { id: 'x', label: 'X', endpoint: null }, key: 'k' }),
     /No endpoint configured/,

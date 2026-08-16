@@ -13,7 +13,7 @@
  *
  * The page's CSP forbids third-party script, and the app never assigns
  * untrusted strings to innerHTML, which together are what actually keep this
- * safe. Storage choice is the second line, not the first.
+ * safe. Storage choice is a second layer of defence.
  */
 
 const PREFIX = 'wmtk.key.';
@@ -40,10 +40,10 @@ export function setRemember(on) {
       }
     } else {
       local().removeItem(REMEMBER_FLAG);
-      // Demote, do not destroy. A key loaded from localStorage in a fresh tab
-      // was never written to sessionStorage, so dropping the persisted copy
-      // outright would delete it entirely -- while the UI promises it survives
-      // until the tab closes. Copy it down first.
+      // Demote the key instead of deleting it. A key loaded from localStorage
+      // in a fresh tab was never written to sessionStorage, so dropping the
+      // persisted copy would remove it completely, while the UI promises it
+      // survives until the tab closes. Copy it down first.
       for (const id of persistedProviders()) {
         const existing = local().getItem(PREFIX + id);
         if (existing && !session().getItem(PREFIX + id)) {
@@ -112,7 +112,7 @@ export function clearAll() {
   } catch { /* ignore */ }
 }
 
-/** Mask a key for display: keep enough to recognise, never enough to use. */
+/** Mask a key for display. Shows enough to recognise it and no more. */
 export function mask(key) {
   if (!key) return '';
   if (key.length <= 10) return '•'.repeat(key.length);

@@ -2,7 +2,7 @@
 
 Tier 1 (best)     exiftool -all= followed by ``qpdf --linearize``. qpdf rewrites
                   the whole file structure, so the old metadata bytes are gone
-                  rather than merely unreferenced.
+                  and are no longer present in the file.
 Tier 2 (middle)   exiftool only. This is an incremental update: the original
                   metadata objects usually remain in the file, orphaned but
                   recoverable with a hex editor.
@@ -146,7 +146,7 @@ def _clean_stdlib(data: bytes, res: MetaResult) -> bytes:
         res.actions.append(f"blanked {total} /Info string value(s)")
 
     # Byte offsets shift when we delete, which invalidates the xref table.
-    # Most readers repair this silently, but say so rather than pretend.
+    # Most readers repair this on open. Report it anyway.
     if n_xmp:
         res.warnings.append(
             "cross-reference offsets are now stale; readers will rebuild the "

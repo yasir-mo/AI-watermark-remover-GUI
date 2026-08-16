@@ -2,7 +2,7 @@
  *
  * Security note that governs this whole file: the page holds the visitor's API
  * key, so script injection here means key theft. Nothing untrusted is ever
- * assigned to innerHTML — every dynamic string goes through textContent.
+ * assigned to innerHTML. Every dynamic string goes through textContent.
  */
 
 import { clean, scan, diffOps } from './layer-a.js';
@@ -113,7 +113,7 @@ function runStrip() {
     $('reveal-block').hidden = true;
     $('findings-block').hidden = true;
     out.value = '';
-    $('out-count').textContent = '—';
+    $('out-count').textContent = 'not cleaned yet';
     return;
   }
 
@@ -284,9 +284,9 @@ function setMode(mode) {
   $('rw-panes').hidden = mode === 'examples';
   $('rw-controls').hidden = mode === 'examples';
 
-  // A result belongs to the mode that produced it. Leaving a genuine API
-  // result on screen after switching to Examples would park it directly above
-  // the "these are hand-written, not model output" notice and make the page
+  // A result belongs to the mode that produced it. Leaving a real API result
+  // on screen after switching to Examples would place it directly above the
+  // notice saying the examples are hand-written, and the page would then
   // contradict itself.
   if (changed) {
     $('rw-result').hidden = true;
@@ -361,7 +361,7 @@ async function fillModels(p, key) {
   }
   $('model-note').textContent =
     `${models.length} model(s) available` +
-    (p.id === 'openrouter' ? ' — free ones only' : '');
+    (p.id === 'openrouter' ? ' (free ones only)' : '');
 }
 
 $('rw-provider').addEventListener('change', onProviderChange);
@@ -420,7 +420,7 @@ function initStrengths() {
   const sel = $('rw-strength');
   sel.replaceChildren();
   for (const s of STRENGTHS) {
-    const o = el('option', null, `${s.label} — ${s.blurb}`);
+    const o = el('option', null, `${s.label}: ${s.blurb}`);
     o.value = s.id;
     sel.appendChild(o);
   }
@@ -456,7 +456,7 @@ async function refreshWebgpu() {
   if (!ok) {
     warn.textContent =
       'WebGPU is not available in this browser, so the model would run on the ' +
-      'CPU — expect it to be very slow. Chrome or Edge on a recent machine ' +
+      'CPU, which will be very slow. Chrome or Edge on a recent machine ' +
       'gives the best result. Using an API key avoids the download entirely.';
   }
 }
@@ -473,9 +473,9 @@ function initLocalModels() {
 
 async function ensureLocalModel() {
   const id = $('local-model').value;
-  // Keyed on the selection, not merely "have we loaded anything": caching on
-  // the latter meant picking a different model after one was already loaded
-  // silently kept using the old one. loadLocalModel() caches per id itself.
+  // Keyed on the current selection. Caching on "have we loaded anything"
+  // meant picking a different model after one was loaded kept using the old
+  // one. loadLocalModel() caches per id itself.
   if (localGenerate && loadedLocalId === id) return localGenerate;
   loadedLocalId = id;
   const status = $('local-status');
@@ -486,7 +486,7 @@ async function ensureLocalModel() {
     if (typeof p.progress === 'number') {
       fill.style.width = `${p.progress}%`;
       const file = p.file ? ` ${p.file}` : '';
-      status.textContent = `downloading${file} — ${p.progress.toFixed(0)}%`;
+      status.textContent = `downloading${file} at ${p.progress.toFixed(0)}%`;
     }
   });
   fill.style.width = '100%';
@@ -703,7 +703,7 @@ function renderProviderTable() {
     tr.appendChild(el('td', null, p.label));
     const yn = el('td');
     yn.appendChild(el('span', p.browserDirect ? 'yes' : 'no',
-      p.browserDirect ? 'yes' : 'no — local app only'));
+      p.browserDirect ? 'yes' : 'no, local app only'));
     tr.appendChild(yn);
     tr.appendChild(el('td', 'uname', p.freeNote || ''));
     tbody.appendChild(tr);
@@ -725,7 +725,7 @@ function boot() {
   setMode('examples');
 
   // ?sample=1 preloads the marked sample, so a link can show the tool doing
-  // something rather than landing on an empty box.
+  // something instead of landing on an empty box.
   if (new URLSearchParams(location.search).get('sample') === '1') {
     src.value = watermarkedSample();
     $('sample-note').hidden = false;

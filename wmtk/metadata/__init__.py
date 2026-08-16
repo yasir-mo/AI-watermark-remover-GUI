@@ -179,7 +179,7 @@ def _exiftool_report(path: Path) -> tuple[list[MetaFinding], list[str]]:
 
 
 #: Groups that carry provenance, authorship or history. Anything outside this
-#: set is structural and is not metadata in the sense this tool cares about.
+#: set is structural, and this tool treats it as part of the file format.
 _EXIFTOOL_GROUPS: dict[str, str] = {
     "EXIF": "exif",
     "XMP": "xmp",
@@ -198,8 +198,7 @@ _EXIFTOOL_GROUPS: dict[str, str] = {
 }
 
 #: Textual tags worth reporting from otherwise-structural format groups.
-#: `PNG:ImageWidth` is a property of the picture; `PNG:Software` is a claim
-#: about who made it.
+#: `PNG:ImageWidth` describes the picture. `PNG:Software` records who made it.
 _EXIFTOOL_TEXT_TAGS: frozenset[str] = frozenset(
     {
         "Software",
@@ -233,12 +232,12 @@ _EXIFTOOL_TEXT_TAGS: frozenset[str] = frozenset(
 def _exiftool_kind(group: str, name: str) -> str | None:
     """Map an exiftool group/tag to a finding kind, or None to ignore it.
 
-    An allowlist, not a denylist. exiftool reports every structural property it
-    can read -- image dimensions, bit depth, colour type -- and treating those
-    as findings meant a freshly cleaned PNG still reported a pile of
+    This is an allowlist. exiftool reports every structural property it can
+    read, including image dimensions, bit depth and colour type. Counting those
+    as findings meant a freshly cleaned PNG still reported a long list of
     "metadata", which makes the clean-then-verify loop useless. Format-native
-    text chunks are still caught, both by the tag list below and by our own
-    parsers, which read them directly.
+    text chunks are still caught, both by the tag list below and by the
+    built-in parsers, which read them directly.
     """
     if group in _EXIFTOOL_GROUPS:
         return _EXIFTOOL_GROUPS[group]

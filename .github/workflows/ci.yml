@@ -95,7 +95,7 @@ jobs:
       - name: Generated assets are current
         run: python -m tools.gen_web_assets --check
 
-      - name: Conformance — JS matches Python
+      - name: Conformance, JS matches Python
         run: node --test web/test/conformance.test.mjs
 
       - name: Layer B browser client

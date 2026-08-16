@@ -123,7 +123,7 @@ def clean(data: bytes) -> tuple[bytes, MetaResult]:
         res.actions.append(f"removed {dropped} non-rendering PNG chunk(s)")
 
     # Chunks are copied verbatim, so their CRCs remain valid; verify the ones
-    # we kept rather than silently emitting a corrupt file.
+    # we kept, so a corrupt file raises here instead of being written.
     _verify_crcs(bytes(out))
     return bytes(out), res
 

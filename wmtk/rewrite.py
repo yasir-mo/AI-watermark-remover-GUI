@@ -9,8 +9,8 @@ the second model has no knowledge of the first model's key or green list.
 Why it is not a guarantee: nothing here proves absence. Paraphrase attacks are
 effective against currently deployed token-level schemes; they are weaker
 against paragraph-level or semantic schemes (SemStamp, PostMark), which are not
-in production deployment as of this writing. Treat Layer B as hygiene, not as a
-detection-proof guarantee.
+in production deployment as of this writing. Layer B is a hygiene step. It
+does not guarantee that a watermark is gone.
 
 No model is vendored. Backends are: print-prompt (offline, prints the prompt),
 ollama, and any OpenAI-compatible /v1/chat/completions endpoint.
@@ -162,7 +162,7 @@ def _check_url(url: str, allow_remote: bool) -> None:
     if parsed.scheme not in ("http", "https"):
         raise RewriteError(f"refusing non-http(s) scheme {parsed.scheme!r}")
     host = (parsed.hostname or "").lower()
-    # "0.0.0.0" here is a destination the user typed, not a bind address.
+    # "0.0.0.0" here is a destination the user typed, so it counts as local.
     is_local = host in ("localhost", "127.0.0.1", "::1", "0.0.0.0")  # noqa: S104
     if not is_local and not allow_remote:
         raise RewriteError(

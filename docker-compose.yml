@@ -40,7 +40,7 @@ services:
       start_period: 5s
 
   # ─────────────────────────────────────────── optional heavy backends
-  # Each is a one-shot CLI, not a long-running service. Invoke with
+  # Each is a one-shot CLI. Invoke with
   # `docker compose run --rm <name> <args>`.
 
   markllm:

@@ -2,12 +2,12 @@
 
 Layer A exists twice: in Python (CLI, local service) and in JavaScript (the
 static demo site). Two hand-maintained copies of watermark-stripping logic
-would drift, and the failure is silent -- the web version would tell someone
-their text is clean when the CLI would still find marks in it.
+would drift, and the failure would be quiet. The web version would report text
+as clean when the CLI would still find marks in it.
 
-So the tables are generated from ``wmtk.unicode_tables`` rather than retyped,
-and both runtimes are pinned to the same conformance vectors. CI regenerates
-and diffs; a drift turns the build red instead of shipping.
+The tables are generated from ``wmtk.unicode_tables``, and both runtimes are
+pinned to the same conformance vectors. CI regenerates and diffs them, so a
+divergence fails the build.
 
     python -m tools.gen_web_assets           # write the files
     python -m tools.gen_web_assets --check   # fail if they are stale
@@ -104,21 +104,21 @@ def build_tables_js() -> str:
     # Unicode names, so the browser can label a finding without shipping the
     # whole UCD.
     #
-    # This must cover EVERY codepoint classify() can flag, not just the
-    # enumerated ranges. The catch-all branch flags any Cf character, so a
+    # This must cover every codepoint classify() can flag, including those
+    # outside the enumerated ranges. The catch-all branch flags any Cf character, so a
     # codepoint like U+180E MONGOLIAN VOWEL SEPARATOR would otherwise show as
-    # "<unnamed>" in the browser while Python reports its real name -- a
-    # divergence between the two implementations, which is exactly what this
-    # generator exists to prevent. Scanning the Cf category costs ~170 entries.
+    # "<unnamed>" in the browser while Python reports its real name. That is a
+    # divergence between the two implementations, which this generator exists
+    # to prevent. Scanning the Cf category costs about 170 entries.
     names: dict[str, str] = {}
 
     for cp in range(0x110000):
         if unicodedata.category(chr(cp)) == "Cf":
             names[f"{cp:X}"] = codepoint_name(cp)
 
-    # Confusables are visible letters, not Cf, so the sweep above misses them.
-    # Aggressive mode flags them, and without this every one displayed as
-    # "<unnamed>" in the browser while the CLI named it properly.
+    # Confusables are visible letters outside the Cf category, so the sweep
+    # above misses them. Aggressive mode flags them, and without this every one
+    # displayed as "<unnamed>" in the browser while the CLI named it properly.
     for cp in CONFUSABLES:
         names[f"{cp:X}"] = codepoint_name(cp)
 
@@ -169,8 +169,8 @@ CASES: list[tuple[str, str, dict]] = [
     ("variation-selector-supplementary", "x\U000e0100y", {}),
     ("interlinear", "a￹b￺c￻d", {}),
     ("deprecated-format", "a⁪b⁯c", {}),
-    # Hits the catch-all Cf branch rather than an enumerated range, which is
-    # where the JS name table used to fall back to "<unnamed>".
+    # Hits the catch-all Cf branch instead of an enumerated range, where the JS
+    # name table used to fall back to "<unnamed>".
     ("mongolian-vowel-separator", "a᠎b", {}),
     # Load-bearing: these must survive untouched.
     ("emoji-zwj-family", "\U0001f469‍\U0001f467", {}),
@@ -246,7 +246,7 @@ def build_vectors() -> dict:
                     "findings": [
                         {
                             # Match Finding.to_dict(): the wire form is the
-                            # "U+XXXX" string, not the raw integer.
+                            # "U+XXXX" string, matching the wire format.
                             "codepoint": f"U+{f.codepoint:04X}",
                             "name": f.name,
                             "kind": f.kind,

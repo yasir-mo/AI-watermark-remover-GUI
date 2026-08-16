@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wmtk — watermark inspector</title>
+<title>wmtk: watermark inspector</title>
 <link rel="stylesheet" href="/ui/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>◍</text></svg>">
 </head>
@@ -13,7 +13,7 @@
   <div class="brand">
     <span class="brand-mark" aria-hidden="true">U+</span>
     <h1>wmtk</h1>
-    <span class="version" id="version" title="service version">—</span>
+    <span class="version" id="version" title="service version">v?</span>
   </div>
   <div class="lamps" id="lamps" role="status" aria-label="Optional tool availability"></div>
 </header>
@@ -43,7 +43,7 @@
     <div class="pane">
       <div class="pane-head">
         <h2>Cleaned</h2>
-        <span class="pane-meta" id="out-count">—</span>
+        <span class="pane-meta" id="out-count">not cleaned yet</span>
         <button class="mini" id="copy-out" type="button">Copy</button>
       </div>
       <textarea id="out" spellcheck="false" readonly
@@ -117,7 +117,7 @@
     <div class="filecard">
       <div class="filecard-head">
         <div>
-          <h3 id="f-name">—</h3>
+          <h3 id="f-name">no file loaded</h3>
           <p class="pane-meta"><span id="f-format"></span> · <span id="f-size"></span></p>
         </div>
         <div class="filecard-actions">
@@ -158,7 +158,7 @@
     <button class="btn btn-primary" id="btn-clean-all" type="button">Clean all</button>
     <button class="btn" id="btn-clear-batch" type="button">Clear</button>
     <div class="progress"><div class="progress-fill" id="progress-fill"></div></div>
-    <span class="pane-meta" id="progress-text">—</span>
+    <span class="pane-meta" id="progress-text">no files queued</span>
   </div>
 
   <div class="table-wrap" id="batch-wrap" hidden>
@@ -241,11 +241,11 @@
   <label class="field">
     <span>Strength</span>
     <select id="rw-strength">
-      <option value="paraphrase">Paraphrase — different wording, same shape</option>
-      <option value="humanize">Humanize — different rhythm, no AI tells</option>
-      <option value="code">Code — comments and locals only, behavior preserved</option>
-      <option value="backtranslate">Backtranslate — through a pivot language</option>
-      <option value="structural">Structural — outline, then rewrite from it</option>
+      <option value="paraphrase">Paraphrase: different wording, same shape</option>
+      <option value="humanize">Humanize: different rhythm, no formulaic phrasing</option>
+      <option value="code">Code: comments and locals only, behavior preserved</option>
+      <option value="backtranslate">Backtranslate: through a pivot language</option>
+      <option value="structural">Structural: outline, then rewrite from it</option>
     </select>
   </label>
 

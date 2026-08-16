@@ -16,7 +16,7 @@ this machine unless the user explicitly configures a remote rewrite backend.
 
 | Layer | What it removes | Reversible? | Confidence |
 |---|---|---|---|
-| **A** | Invisible Unicode: zero-width spaces, joiners, bidi controls, tag characters, variation selectors, private-use codepoints, space homoglyphs | Lossless. Deterministic. | High — the characters are either there or not |
+| **A** | Invisible Unicode: zero-width spaces, joiners, bidi controls, tag characters, variation selectors, private-use codepoints, space homoglyphs | Lossless. Deterministic. | High. The characters are either there or not |
 | **B** | Statistical token-sampling watermarks (KGW green lists, SynthID tournament sampling) | Rewrites the prose. Not lossless. | Best-effort. See the limits section |
 | **Metadata** | C2PA manifests, EXIF, XMP, IPTC, document properties, AI frontmatter and generator tags | Lossless for the content. Deterministic. | High, with a caveat for PDFs |
 
@@ -30,7 +30,7 @@ curl -s http://127.0.0.1:8765/capabilities
 ```
 
 `/health` returns `{"ok": true, "version": "..."}`. If curl cannot connect, the
-service is not running — tell the user to start it:
+service is not running. Tell the user to start it:
 
 ```bash
 python -m wmtk.server
@@ -39,13 +39,13 @@ python -m wmtk.server
 `/capabilities` tells you which optional tools are installed. Read it before
 promising anything:
 
-- `tools.exiftool.installed` — richer metadata reporting and a second scrub pass
-- `tools.c2patool.installed` — can actually read and verify C2PA manifests
-- `tools.qpdf.installed` — PDFs get a structural rebuild instead of a patch
-- `pdf_tier` — `exiftool+qpdf` (best), `exiftool` (partial), or `stdlib` (degraded)
+- `tools.exiftool.installed`: richer metadata reporting and a second scrub pass
+- `tools.c2patool.installed`: reads and verifies C2PA manifests
+- `tools.qpdf.installed`: PDFs get a structural rebuild instead of a patch
+- `pdf_tier`: `exiftool+qpdf` (best), `exiftool` (partial), or `stdlib` (degraded)
 
 If a tool is missing, the response carries an `install` string for it. Pass that
-along rather than inventing install steps.
+along instead of inventing install steps.
 
 ### Bearer token
 
@@ -74,7 +74,7 @@ curl -s -X POST http://127.0.0.1:8765/inspect \
 ```
 
 For text with quotes or newlines, write it to a file and build the JSON with a
-tool rather than hand-escaping it:
+tool instead of hand-escaping it:
 
 ```bash
 python3 -c 'import json,sys; print(json.dumps({"text": open(sys.argv[1], encoding="utf-8").read(), "name": sys.argv[1]}))' input.txt > /tmp/req.json
@@ -122,17 +122,17 @@ curl -s -X POST http://127.0.0.1:8765/inspect \
 
 Report `summary` first, then the specifics. Three fields deserve care:
 
-- **`findings_present` vs `watermark_suspected`** — these are different claims.
+- **`findings_present` vs `watermark_suspected`**: these are different claims.
   `findings_present` means there is something to strip; an author name in a
   DOCX counts. `watermark_suspected` is the stronger claim, reserved for
   provenance manifests and deliberately hidden characters. A file can have
   plenty worth removing and still not be watermarked. Say which one you mean.
 
-- **`kept_as_load_bearing`** — characters the cleaner will deliberately keep.
+- **`kept_as_load_bearing`**: characters the cleaner will deliberately keep.
   A zero-width joiner between two emoji, or between Persian letters, is doing
   real typographic work. `total_flagged` minus `total_removable` is what stays.
-  Do not describe these as "not removed yet"; they are correctly preserved.
-- **`metadata.warnings`** — say these out loud. The PDF degraded tier warns that
+  Describe these as correctly preserved.
+- **`metadata.warnings`**: say these out loud. The PDF degraded tier warns that
   it cannot reach metadata inside object streams. That limitation is real.
 
 ## Clean
@@ -160,7 +160,7 @@ Pass an `options` object on either endpoint:
 
 | Option | Default | Effect |
 |---|---|---|
-| `aggressive` | `false` | Also fold Cyrillic/Greek/fullwidth lookalikes to ASCII. Only use when the user suspects homoglyph substitution — it corrupts genuinely non-Latin text |
+| `aggressive` | `false` | Also fold Cyrillic/Greek/fullwidth lookalikes to ASCII. Only use when the user suspects homoglyph substitution, since it corrupts genuinely non-Latin text |
 | `strip_emoji_glue` | `false` | Remove load-bearing joiners too. **This breaks emoji sequences and Persian, Devanagari, and Khmer text.** Only on explicit request |
 | `normalize` | `false` | NFKC-normalize after cleaning |
 | `layer_a` | `true` | Scan/clean invisible characters (text formats only) |
@@ -181,8 +181,8 @@ curl -s -X POST http://127.0.0.1:8765/inspect \
 
 ## Layer B: rewriting
 
-Only reach for this when the user is worried about *statistical* watermarks —
-the token-choice patterns a model bakes in while generating. Layer A cannot
+Only reach for this when the user is worried about statistical watermarks,
+the token-choice patterns a model applies while generating. Layer A cannot
 touch those, because there is nothing invisible to delete.
 
 ```bash
@@ -192,8 +192,8 @@ curl -s -X POST http://127.0.0.1:8765/rewrite \
        "strength": "paraphrase", "candidates": 3}'
 ```
 
-Backends: `print-prompt` (default, calls nothing — returns the prompt so the
-user can run it themselves), `ollama`, `openai-compatible`.
+Backends: `print-prompt` (the default, which calls nothing and returns the
+prompt so the user can run it themselves), `ollama`, `openai-compatible`.
 
 Strengths: `paraphrase`, `humanize`, `code`, `backtranslate`, `structural`.
 
@@ -204,13 +204,13 @@ Three rules:
    Rewriting with the origin model can re-stamp the same watermark.
 2. **Loopback only, unless the user says otherwise.** A non-local `base_url`
    is refused unless `allow_remote: true`. Sending it means the user's text
-   leaves their machine — confirm before you set that flag.
+   leaves their machine. Confirm before you set that flag.
 3. **Check the divergence.** The response has `divergence` (0 to 1). Below
    roughly 0.5 the rewrite barely changed the wording, and the original token
    pattern may partly survive. Raise `temperature` or `candidates` and retry.
 
 Show the user the rewritten text before treating it as final. It is their prose;
-a paraphrase is a real edit, not a cleanup.
+a paraphrase is a real edit.
 
 ## What to tell the user about limits
 
@@ -218,7 +218,7 @@ Be accurate about this. Overstating it is the main way this tool misleads.
 
 - **Layer A is exact.** Those characters are gone. You can verify it.
 - **Metadata stripping is exact** for PNG, JPEG, WebP, SVG, DOCX, ODT, HTML,
-  and Markdown — the bytes are rebuilt without them.
+  and Markdown. The bytes are rebuilt without them.
 - **PDFs depend on the tier.** With qpdf, the file is structurally rebuilt and
   the metadata is genuinely gone. Without it, old metadata objects can survive
   in the file unreferenced. Report `metadata.tier` when it matters.
