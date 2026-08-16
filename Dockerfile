@@ -4,7 +4,12 @@ FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    WATERMARKS_MAX_INPUT_BYTES=268435456
+    WATERMARKS_MAX_INPUT_BYTES=268435456 \
+    # A container has to bind 0.0.0.0 to be reachable through a port mapping,
+    # and the mapping (compose publishes to 127.0.0.1) is the actual boundary.
+    # The server refuses a non-loopback bind without this acknowledgement, so
+    # state it here rather than leaving the image unable to start.
+    WATERMARKS_ALLOW_INSECURE_BIND=1
 
 # exiftool and qpdf come from Debian. c2patool is a Rust binary fetched from
 # the ContentAuth release page; if the download fails the build still succeeds

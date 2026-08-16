@@ -166,25 +166,85 @@ def _exiftool_report(path: Path) -> tuple[list[MetaFinding], list[str]]:
     except ValueError:
         return findings, ["exiftool produced unparseable JSON"]
 
-    ignore_groups = {"File", "ExifTool", "Composite"}
     for entry in entries:
         for tag, value in entry.items():
             if ":" not in tag:
                 continue
-            group = tag.split(":", 1)[0]
-            if group in ignore_groups:
+            group, name = tag.split(":", 1)
+            kind = _exiftool_kind(group, name)
+            if kind is None:
                 continue
-            kind = {
-                "EXIF": "exif",
-                "XMP": "xmp",
-                "IPTC": "iptc",
-                "ICC_Profile": "icc",
-                "JUMBF": "c2pa",
-                "PNG": "text",
-                "PDF": "docprops",
-            }.get(group, group.lower())
             findings.append(MetaFinding(kind, f"{tag} = {str(value)[:120]}", 0, "confirmed"))
     return findings, warnings
+
+
+#: Groups that carry provenance, authorship or history. Anything outside this
+#: set is structural and is not metadata in the sense this tool cares about.
+_EXIFTOOL_GROUPS: dict[str, str] = {
+    "EXIF": "exif",
+    "XMP": "xmp",
+    "IPTC": "iptc",
+    "ICC_Profile": "icc",
+    "JUMBF": "c2pa",
+    "C2PA": "c2pa",
+    "Photoshop": "iptc",
+    "PDF": "docprops",
+    "MakerNotes": "exif",
+    "GPS": "exif",
+    "Adobe": "adobe",
+    "FlashPix": "docprops",
+    "Ducky": "adobe",
+    "MIE": "docprops",
+}
+
+#: Textual tags worth reporting from otherwise-structural format groups.
+#: `PNG:ImageWidth` is a property of the picture; `PNG:Software` is a claim
+#: about who made it.
+_EXIFTOOL_TEXT_TAGS: frozenset[str] = frozenset(
+    {
+        "Software",
+        "Comment",
+        "Description",
+        "Author",
+        "Artist",
+        "Copyright",
+        "Title",
+        "Warning",
+        "Disclaimer",
+        "Source",
+        "CreationTime",
+        "ModifyDate",
+        "CreateDate",
+        "Creator",
+        "Producer",
+        "Keywords",
+        "UserComment",
+        "DocumentName",
+        "HostComputer",
+        "ProcessingSoftware",
+        "XMLcomAdobeXMP",
+        "Parameters",
+        "Prompt",
+        "Workflow",
+    }
+)
+
+
+def _exiftool_kind(group: str, name: str) -> str | None:
+    """Map an exiftool group/tag to a finding kind, or None to ignore it.
+
+    An allowlist, not a denylist. exiftool reports every structural property it
+    can read -- image dimensions, bit depth, colour type -- and treating those
+    as findings meant a freshly cleaned PNG still reported a pile of
+    "metadata", which makes the clean-then-verify loop useless. Format-native
+    text chunks are still caught, both by the tag list below and by our own
+    parsers, which read them directly.
+    """
+    if group in _EXIFTOOL_GROUPS:
+        return _EXIFTOOL_GROUPS[group]
+    if name in _EXIFTOOL_TEXT_TAGS:
+        return "text"
+    return None
 
 
 def _enrich(result: MetaResult, data: bytes, name: str) -> None:

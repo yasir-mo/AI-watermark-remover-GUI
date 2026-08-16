@@ -341,3 +341,98 @@ class TestXmlEntityGuards:
         assert any("ENTITY" in w for w in result.warnings)
         out, _ = ooxml.clean(buf.getvalue())
         assert len(out) < 10 * len(buf.getvalue())
+
+
+class TestExiftoolReportFiltering:
+    """The exiftool enrichment path only runs where exiftool is installed,
+    which was a single CI cell. These tests exercise the filtering everywhere
+    by feeding it canned exiftool output."""
+
+    @pytest.mark.parametrize(
+        "group,name",
+        [
+            ("PNG", "ImageWidth"),
+            ("PNG", "BitDepth"),
+            ("PNG", "ColorType"),
+            ("PNG", "Interlace"),
+            ("PNG", "Filter"),
+            ("File", "FileSize"),
+            ("ExifTool", "ExifToolVersion"),
+            ("Composite", "Megapixels"),
+            ("JFIF", "JFIFVersion"),
+            ("RIFF", "ImageWidth"),
+            ("QuickTime", "Duration"),
+        ],
+    )
+    def test_structural_properties_are_not_findings(self, group, name):
+        """A cleaned PNG must report zero findings, not its own dimensions."""
+        from wmtk.metadata import _exiftool_kind
+
+        assert _exiftool_kind(group, name) is None, f"{group}:{name} should be ignored"
+
+    @pytest.mark.parametrize(
+        "group,name,kind",
+        [
+            ("EXIF", "Make", "exif"),
+            ("EXIF", "DateTimeOriginal", "exif"),
+            ("GPS", "GPSLatitude", "exif"),
+            ("XMP", "CreatorTool", "xmp"),
+            ("IPTC", "By-line", "iptc"),
+            ("JUMBF", "ClaimGenerator", "c2pa"),
+            ("C2PA", "Manifest", "c2pa"),
+            ("PDF", "Author", "docprops"),
+            ("ICC_Profile", "ProfileDescription", "icc"),
+            ("Photoshop", "IPTCDigest", "iptc"),
+            ("MakerNotes", "SerialNumber", "exif"),
+        ],
+    )
+    def test_provenance_groups_are_reported(self, group, name, kind):
+        from wmtk.metadata import _exiftool_kind
+
+        assert _exiftool_kind(group, name) == kind
+
+    @pytest.mark.parametrize(
+        "name",
+        ["Software", "Comment", "Author", "Copyright", "Parameters", "Prompt"],
+    )
+    def test_textual_tags_survive_the_allowlist(self, name):
+        """PNG:Software is a claim about who made the file, so it is reported
+        even though the PNG group itself is structural."""
+        from wmtk.metadata import _exiftool_kind
+
+        assert _exiftool_kind("PNG", name) == "text"
+
+    def test_clean_png_reports_nothing_from_exiftool(self, monkeypatch, png_with_metadata):
+        """End to end with a stubbed exiftool: a structural-only report must
+        produce zero findings, so clean-then-verify actually reads as clean."""
+        import json as _json
+
+        from wmtk import metadata as md
+
+        canned = _json.dumps(
+            [
+                {
+                    "SourceFile": "x.png",
+                    "ExifTool:ExifToolVersion": 12.76,
+                    "File:FileSize": 1234,
+                    "PNG:ImageWidth": 1,
+                    "PNG:ImageHeight": 1,
+                    "PNG:BitDepth": 8,
+                    "PNG:ColorType": 2,
+                    "Composite:Megapixels": 0.000001,
+                }
+            ]
+        ).encode()
+
+        class Proc:
+            stdout = canned
+            stderr = b""
+            returncode = 0
+
+        monkeypatch.setattr(md, "have_tool", lambda n: n == "exiftool")
+        monkeypatch.setattr(md, "run_tool", lambda *a, **k: Proc())
+
+        out, _ = png.clean(png_with_metadata)
+        report = md.inspect_file(out, "clean.png", use_tools=True).to_dict()
+        assert report["count"] == 0, report["findings"]
+        assert report["c2pa_present"] is False
