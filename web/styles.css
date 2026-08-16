@@ -867,3 +867,6 @@ table.data .num { text-align: right; }
 
 .yes { color: var(--ok); font-weight: 600; }
 .no  { color: var(--faint); }
+
+.good-text { color: var(--ok); }
+.warn-text { color: var(--warn); }

@@ -568,9 +568,13 @@ $('rw-run').addEventListener('click', async () => {
 
 function showResult(r) {
   $('rw-result').hidden = false;
+  const pct = Math.round((r.lengthRatio - 1) * 100);
+  const lengthBit = r.withinTolerance
+    ? `${r.outputWords} of ${r.inputWords} words, on target`
+    : `${r.outputWords} of ${r.inputWords} words (${pct >= 0 ? '+' : ''}${pct}%), off target`;
   $('rw-stats').textContent =
-    `${r.provider} · ${r.model || 'in-browser'} · ${r.strength} · ` +
-    `${r.inputLength} → ${r.outputLength} characters`;
+    `${r.provider} · ${r.model || 'in-browser'} · ${r.strength} · ${lengthBit}` +
+    (r.sections > 1 ? ` · ${r.sections} sections` : '');
 
   const pct = Math.round(r.divergence * 100);
   $('div-meter').hidden = false;
@@ -578,6 +582,14 @@ function showResult(r) {
   fill.style.width = `${pct}%`;
   fill.className = 'meter-fill' + (pct >= 70 ? ' good' : pct >= 50 ? ' mid' : '');
   $('div-label').textContent = `${pct}% diverged`;
+
+  const lenEl = $('len-label');
+  if (lenEl) {
+    lenEl.textContent = r.withinTolerance
+      ? `length on target (±${Math.round(r.tolerance * 100)}%)`
+      : `length ${pct >= 0 ? '+' : ''}${pct}% vs source`;
+    lenEl.className = 'meter-label ' + (r.withinTolerance ? 'good-text' : 'warn-text');
+  }
 
   const notes = $('rw-notes');
   notes.replaceChildren();

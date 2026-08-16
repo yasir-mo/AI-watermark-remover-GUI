@@ -120,7 +120,8 @@ test('picks the most diverged candidate', async () => {
     provider: stubProvider,
     candidates: 2,
     layerAAfter: false,
-    localGenerate: async () => outputs[i++],
+    lengthRetries: 0, // isolate divergence selection from length retries
+    localGenerate: async () => outputs[Math.min(i++, outputs.length - 1)],
   });
   assert.ok(r.text.startsWith('On 14 March 2023'));
   assert.equal(r.candidates.length, 2);
@@ -167,7 +168,7 @@ test('two-step strengths make two calls', async () => {
   for (const strength of ['backtranslate', 'structural']) {
     let calls = 0;
     await rewrite(SAMPLE, {
-      provider: stubProvider, strength,
+      provider: stubProvider, strength, lengthRetries: 0,
       localGenerate: async () => { calls++; return 'intermediate output text'; },
     });
     assert.equal(calls, 2, `${strength} should make two calls`);
@@ -398,4 +399,123 @@ test('the pipeline tidies and length-limits what a model returns', async () => {
   });
   assert.equal(r.text, 'A board convened Tuesday and signed off the spending plan.');
   assert.ok(sawMaxTokens > 0 && sawMaxTokens < 3072, `maxNewTokens was ${sawMaxTokens}`);
+});
+
+/* ── length band and arbitrary input size ────────────────────────────────── */
+
+import { chunkText, splitSentences, lengthBand, withinBand, lengthNudge }
+  from '../src/rewrite.js';
+
+const SENTENCE = 'The committee reviewed the quarterly figures and approved it. ';
+
+test('short and long input are both accepted', async () => {
+  for (const source of ['Hi there.', SENTENCE.repeat(400)]) {
+    const r = await rewrite(source, {
+      provider: stubProvider, layerAAfter: false, lengthRetries: 0,
+      localGenerate: async (p) => {
+        // Echo back a same-length paraphrase of whatever chunk was sent.
+        const body = p.slice(p.lastIndexOf('TEXT:') + 5).trim();
+        return body.replace(/committee/g, 'panel').replace(/approved/g, 'signed off');
+      },
+    });
+    assert.ok(r.text.length > 0, 'empty output');
+    assert.ok(r.outputWords > 0);
+  }
+});
+
+test('long input is split into sections', async () => {
+  const source = SENTENCE.repeat(400); // ~24k characters
+  let calls = 0;
+  const r = await rewrite(source, {
+    provider: stubProvider, layerAAfter: false, lengthRetries: 0,
+    localGenerate: async (p) => { calls++; return p.slice(p.lastIndexOf('TEXT:') + 5).trim(); },
+  });
+  assert.ok(r.sections > 1, `expected several sections, got ${r.sections}`);
+  assert.equal(calls, r.sections);
+  assert.ok(r.notes.some((n) => n.includes('split into')));
+});
+
+test('a model that overruns is asked again with a correction', async () => {
+  const source = SENTENCE.repeat(4);
+  const seen = [];
+  let call = 0;
+  const r = await rewrite(source, {
+    provider: stubProvider, layerAAfter: false, lengthRetries: 2,
+    localGenerate: async (p) => {
+      seen.push(p);
+      call++;
+      // First attempt runs far too long; the retry behaves.
+      return call === 1
+        ? 'padding words here '.repeat(120)
+        : source.replace(/committee/g, 'panel');
+    },
+  });
+  assert.ok(call > 1, 'no retry was attempted');
+  assert.ok(seen[1].startsWith('Your previous attempt was'),
+    'retry prompt lacks the length correction');
+  assert.ok(r.withinTolerance, `final result out of band: ${r.outputWords}/${r.inputWords}`);
+});
+
+test('the result reports the achieved length honestly', async () => {
+  const source = SENTENCE.repeat(4);
+  const r = await rewrite(source, {
+    provider: stubProvider, layerAAfter: false, lengthRetries: 0,
+    localGenerate: async () => 'far too short',
+  });
+  assert.equal(r.withinTolerance, false);
+  assert.ok(r.lengthRatio < 0.5);
+  assert.ok(r.notes.some((n) => n.includes('outside the')),
+    'must say the target was missed: ' + r.notes.join(' | '));
+});
+
+test('lengthBand brackets by the tolerance', () => {
+  const band = lengthBand('one two three four five six seven eight nine ten', 0.1);
+  assert.deepEqual([band.min, band.target, band.max], [9, 10, 11]);
+  assert.ok(withinBand('a b c d e f g h i j', 'a b c d e f g h i j'));
+  assert.ok(!withinBand('a b c d e f g h i j', 'a b c'));
+});
+
+test('lengthNudge tells the model which way to move', () => {
+  const band = lengthBand('one two three four five', 0.1);
+  assert.ok(/too long/.test(lengthNudge(99, band)));
+  assert.ok(/too short/.test(lengthNudge(1, band)));
+  assert.ok(lengthNudge(99, band).includes(`${band.min} to ${band.max} words`));
+  assert.ok(lengthNudge(99, band).includes('99 words'), 'must state what it produced');
+});
+
+test('chunkText keeps every word', () => {
+  const source = SENTENCE.repeat(200);
+  const chunks = chunkText(source, 1200);
+  assert.ok(chunks.length > 1);
+  const rejoined = chunks.join(' ').replace(/\s+/g, ' ').trim();
+  assert.equal(countWords(rejoined), countWords(source));
+  for (const c of chunks) assert.ok(c.length <= 1200 * 1.5, `chunk too big: ${c.length}`);
+});
+
+test('chunkText respects paragraph boundaries', () => {
+  const source = ['para one here.', 'para two here.', 'para three here.'].join('\n\n');
+  assert.deepEqual(chunkText(source, 10000), [source]);
+});
+
+test('chunkText splits a single oversized paragraph on sentences', () => {
+  const one = SENTENCE.repeat(60); // one paragraph, no blank lines
+  const chunks = chunkText(one, 600);
+  assert.ok(chunks.length > 1);
+  for (const c of chunks) assert.ok(c.trim().endsWith('.'), `chunk cut mid-sentence: ${c.slice(-40)}`);
+});
+
+test('splitSentences keeps abbreviations intact', () => {
+  const s = splitSentences('Dr. Chen met the board. See Fig. 3 for detail. Done.');
+  assert.equal(s.length, 3);
+  assert.ok(s[0].includes('Dr. Chen'));
+  assert.ok(s[1].includes('Fig. 3'));
+});
+
+test('two-step strengths are not chunked', async () => {
+  const source = SENTENCE.repeat(400);
+  const r = await rewrite(source, {
+    provider: stubProvider, strength: 'structural', layerAAfter: false, lengthRetries: 0,
+    localGenerate: async () => 'outline based rewrite',
+  });
+  assert.equal(r.sections, 1, 'structural must see the whole passage');
 });

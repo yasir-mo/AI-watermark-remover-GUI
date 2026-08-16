@@ -125,6 +125,9 @@ OUTLINE:
 
 const WORD_RE = /[\p{L}\p{N}_]+/gu;
 
+/** Separator used when rejoining rewritten sections of a long input. */
+const SECTION_JOIN = '\n\n';
+
 const fill = (tpl, vars) =>
   tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 
@@ -236,6 +239,123 @@ export function tidyModelOutput(raw, { prompt = '', unwrapQuotes = true } = {}) 
   return t;
 }
 
+/* ── chunking, so any length of input is accepted ────────────────────────── */
+
+//: Titles and abbreviations whose trailing period does not end a sentence.
+const ABBREVIATIONS = [
+  'Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Sr', 'Jr', 'St', 'Rev', 'Hon',
+  'vs', 'etc', 'e.g', 'i.e', 'cf', 'al', 'Inc', 'Ltd', 'Co', 'Corp',
+  'Fig', 'No', 'Vol', 'pp', 'approx', 'Jan', 'Feb', 'Mar', 'Apr',
+  'Jun', 'Jul', 'Aug', 'Sept', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Matches an abbreviation sitting at the very end of a fragment.
+// String.raw is required: in a plain template literal `\b` is the backspace
+// character, not the word-boundary assertion, and the regex silently never
+// matches.
+const ABBREV_TAIL_RE = new RegExp(
+  String.raw`\b(?:${ABBREVIATIONS.join('|').replace(/\./g, String.raw`\.`)})\.$`,
+);
+
+const SENTENCE_SPLIT_RE = /(?<=[.!?])[ 	]+(?=["'([]*[A-Z0-9])/;
+
+/**
+ * Rough sentence split. Mirrors split_sentences in rewrite.py.
+ *
+ * Splits first, then rejoins any fragment that ended on an abbreviation, so
+ * "Dr. Chen" stays one sentence. Doing it this way avoids masking the text
+ * with a sentinel control character, which would be a poor idea in a tool
+ * whose job is removing stray invisible characters.
+ */
+export function splitSentences(text) {
+  const out = [];
+  for (const part of String(text).split(SENTENCE_SPLIT_RE)) {
+    const prev = out[out.length - 1];
+    if (prev !== undefined && ABBREV_TAIL_RE.test(prev)) {
+      out[out.length - 1] = `${prev} ${part}`;
+    } else {
+      out.push(part);
+    }
+  }
+  return out.filter((s) => s.trim());
+}
+
+/**
+ * Split text into chunks the model can handle.
+ *
+ * Chunking is what makes arbitrary input length work, and it also improves
+ * length fidelity: a model matches a target far more closely over a few
+ * hundred words than over several thousand. Paragraph boundaries are
+ * preferred; an oversized paragraph falls back to sentence boundaries.
+ */
+export function chunkText(text, maxChars = 3000) {
+  const src = String(text);
+  if (src.length <= maxChars) return src.trim() ? [src] : [];
+
+  const pieces = [];
+  for (const para of src.split(/\n\n+/)) {
+    if (para.length <= maxChars) {
+      pieces.push(para);
+      continue;
+    }
+    let buf = '';
+    for (const sentence of splitSentences(para)) {
+      if (buf && buf.length + sentence.length + 1 > maxChars) {
+        pieces.push(buf.trim());
+        buf = '';
+      }
+      buf += (buf ? ' ' : '') + sentence;
+    }
+    if (buf.trim()) pieces.push(buf.trim());
+  }
+
+  const chunks = [];
+  let current = [];
+  let size = 0;
+  for (const piece of pieces) {
+    if (size + piece.length > maxChars && current.length) {
+      chunks.push(current.join('\n\n'));
+      current = [];
+      size = 0;
+    }
+    current.push(piece);
+    size += piece.length + 2;
+  }
+  if (current.length) chunks.push(current.join('\n\n'));
+  return chunks.filter((c) => c.trim());
+}
+
+/* ── length band enforcement ─────────────────────────────────────────────── */
+
+/** The acceptable word range for a rewrite of `source`. */
+export function lengthBand(source, tolerance = 0.1) {
+  const target = countWords(source);
+  return {
+    target,
+    min: Math.max(1, Math.round(target * (1 - tolerance))),
+    max: Math.max(1, Math.round(target * (1 + tolerance))),
+    tolerance,
+  };
+}
+
+export function withinBand(source, candidate, tolerance = 0.1) {
+  const band = lengthBand(source, tolerance);
+  const n = countWords(candidate);
+  return n >= band.min && n <= band.max;
+}
+
+/** Corrective instruction prepended to a retry when a attempt missed the band. */
+export function lengthNudge(actualWords, band) {
+  const direction =
+    actualWords > band.max
+      ? 'Your previous attempt was too long. Tighten the phrasing. Do not drop any fact.'
+      : 'Your previous attempt was too short. Cover every point in the source in full.';
+  return (
+    `Your previous attempt was ${actualWords} words. The required length is ` +
+    `${band.min} to ${band.max} words. ${direction}\n\n`
+  );
+}
+
 export function scoreCandidate(original, candidate) {
   const notes = [];
   let score = divergence(original, candidate);
@@ -323,7 +443,7 @@ async function callModel({
 
 /* ── pipeline ────────────────────────────────────────────────────────────── */
 
-export async function rewrite(text, opts) {
+async function rewriteChunk(text, opts) {
   const {
     provider,
     endpoint = null,
@@ -332,18 +452,17 @@ export async function rewrite(text, opts) {
     strength = 'paraphrase',
     temperature = 0.9,
     candidates = 1,
-    layerAAfter = true,
     pivot = 'French',
     sourceLanguage = 'English',
+    tolerance = 0.1,
+    lengthRetries = 2,
     onProgress = () => {},
     signal,
     // Injected by the in-browser model path; bypasses fetch entirely.
     localGenerate = null,
   } = opts;
 
-  if (candidates < 1 || candidates > 5) {
-    throw new RewriteError('candidates must be between 1 and 5');
-  }
+  const band = lengthBand(text, tolerance);
 
   // Budget the output against the source, so a rewrite stays close in length.
   const maxTokens = tokenBudget(text);
@@ -365,14 +484,15 @@ export async function rewrite(text, opts) {
 
   const prompt = buildPrompt(text, strength, { pivot });
 
-  const onePass = async () => {
+  const onePass = async (nudge = '') => {
     if (strength === 'backtranslate') {
       onProgress(`translating into ${pivot}`);
       const mid = await generate(fill(PROMPTS.backtranslate_forward, { text, pivot }));
       onProgress(`translating back into ${sourceLanguage}`);
       return generate(
-        fill(PROMPTS.backtranslate_back, {
+        nudge + fill(PROMPTS.backtranslate_back, {
           text: mid, pivot, source_language: sourceLanguage,
+          ...lengthVars(text, tolerance),
         }),
       );
     }
@@ -381,26 +501,110 @@ export async function rewrite(text, opts) {
       const outline = await generate(fill(PROMPTS.structural_outline, { text }));
       onProgress('rewriting from the outline');
       return generate(
-        fill(PROMPTS.structural_expand, {
+        nudge + fill(PROMPTS.structural_expand, {
           text: outline,
           register: 'the same register as the original',
-          target_words: Math.max(50, (text.match(WORD_RE) || []).length),
+          ...lengthVars(text, tolerance),
         }),
       );
     }
-    return generate(prompt);
+    return generate(nudge + prompt);
+  };
+
+  // Ask again when an attempt misses the band, telling the model what it
+  // actually produced. The prompt alone is a request; this is the part that
+  // makes the length hold. The closest attempt is kept if none land in band.
+  const attempt = async (label) => {
+    let best = null;
+    for (let i = 0; i <= lengthRetries; i++) {
+      const nudge = i === 0 || !best ? '' : lengthNudge(best.words, band);
+      if (i > 0) onProgress(`${label}: adjusting length, attempt ${i + 1}`);
+      const out = await onePass(nudge);
+      const words = countWords(out);
+      const cand = { text: out, words, inBand: words >= band.min && words <= band.max };
+      if (cand.inBand) return cand;
+      if (!best || Math.abs(words - band.target) < Math.abs(best.words - band.target)) {
+        best = cand;
+      }
+    }
+    return best ?? { text: '', words: 0, inBand: false };
   };
 
   const scored = [];
   for (let i = 0; i < candidates; i++) {
-    onProgress(`candidate ${i + 1} of ${candidates}`);
-    const out = await onePass();
-    const { score, notes } = scoreCandidate(text, out);
-    scored.push({ text: out, score, divergence: divergence(text, out), notes });
+    const label = `candidate ${i + 1} of ${candidates}`;
+    onProgress(label);
+    const cand = await attempt(label);
+    const { score, notes } = scoreCandidate(text, cand.text);
+    // An in-band candidate always beats an out-of-band one, however diverged.
+    scored.push({
+      text: cand.text,
+      words: cand.words,
+      inBand: cand.inBand,
+      score: score + (cand.inBand ? 1 : 0),
+      divergence: divergence(text, cand.text),
+      notes,
+    });
   }
   scored.sort((a, b) => b.score - a.score);
+  const winner = scored[0];
 
-  let best = scored[0].text;
+  return {
+    text: winner.text,
+    words: winner.words,
+    inBand: winner.inBand,
+    candidates: scored,
+    prompt,
+    band,
+  };
+}
+
+/**
+ * Rewrite `text`, keeping the result close to the source length.
+ *
+ * Long input is split into chunks and each chunk is rewritten against its own
+ * word target, so any length of input is accepted and the length tracks the
+ * source section by section instead of drifting across the whole document.
+ */
+export async function rewrite(text, opts) {
+  const {
+    strength = 'paraphrase',
+    candidates = 1,
+    layerAAfter = true,
+    tolerance = 0.1,
+    chunkChars = null,
+    onProgress = () => {},
+    localGenerate = null,
+  } = opts;
+
+  if (candidates < 1 || candidates > 5) {
+    throw new RewriteError('candidates must be between 1 and 5');
+  }
+
+  // An in-browser model is slow and has a small effective context, so it gets
+  // smaller chunks. A hosted model can take more per call.
+  const limit = chunkChars ?? (localGenerate ? 1200 : 4000);
+
+  // The two-step strengths reason over the whole passage, so chunking them
+  // would change what they do. They stay whole.
+  const chunked = strength === 'backtranslate' || strength === 'structural'
+    ? [text]
+    : chunkText(text, limit);
+  const pieces = chunked.length ? chunked : [text];
+
+  const results = [];
+  for (let i = 0; i < pieces.length; i++) {
+    if (pieces.length > 1) onProgress(`section ${i + 1} of ${pieces.length}`);
+    results.push(
+      await rewriteChunk(pieces[i], {
+        ...opts,
+        onProgress: (m) =>
+          onProgress(pieces.length > 1 ? `section ${i + 1}/${pieces.length}: ${m}` : m),
+      }),
+    );
+  }
+
+  let best = results.map((r) => r.text).join(SECTION_JOIN);
   let layerAReport = null;
   const notes = [];
 
@@ -414,6 +618,34 @@ export async function rewrite(text, opts) {
           `character(s) of its own. Layer A removed them.`,
       );
     }
+  }
+
+  const sourceWords = countWords(text);
+  const outputWords = countWords(best);
+  const ratio = sourceWords ? outputWords / sourceWords : 1;
+  const band = lengthBand(text, tolerance);
+  const inBand = outputWords >= band.min && outputWords <= band.max;
+
+  if (pieces.length > 1) {
+    notes.push(
+      `Input was split into ${pieces.length} sections, each rewritten against ` +
+        `its own length target.`,
+    );
+  }
+
+  if (inBand) {
+    notes.push(
+      `Length: ${outputWords} words against ${sourceWords} in the source, ` +
+        `within the ${Math.round(tolerance * 100)}% target.`,
+    );
+  } else {
+    notes.push(
+      `Length: ${outputWords} words against ${sourceWords} in the source ` +
+        `(${ratio >= 1 ? '+' : ''}${Math.round((ratio - 1) * 100)}%), outside the ` +
+        `${Math.round(tolerance * 100)}% target. The model was asked again and ` +
+        `this was its closest attempt. A larger model holds a length target ` +
+        `much better than a 0.5B one.`,
+    );
   }
 
   notes.push(
@@ -436,13 +668,19 @@ export async function rewrite(text, opts) {
     original: text,
     text: best,
     strength,
-    model,
-    provider: provider?.label ?? 'in-browser',
+    model: opts.model,
+    provider: opts.provider?.label ?? 'in-browser',
     inputLength: text.length,
     outputLength: best.length,
+    inputWords: sourceWords,
+    outputWords,
+    lengthRatio: ratio,
+    withinTolerance: inBand,
+    tolerance,
+    sections: pieces.length,
     divergence: finalDivergence,
-    candidates: scored,
-    prompt,
+    candidates: results[0]?.candidates ?? [],
+    prompt: results[0]?.prompt ?? '',
     layerAAfter: layerAReport,
     notes,
   };
