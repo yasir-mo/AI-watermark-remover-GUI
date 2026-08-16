@@ -10,16 +10,23 @@
      realistic way a key leaks. Lock the origins down. 'wasm-unsafe-eval' and
      the jsdelivr/huggingface entries exist solely for the opt-in local model;
      nothing loads from them until the visitor clicks. -->
+<!-- connect-src must allow plain http to loopback: the "custom OpenAI-compatible"
+     provider exists so people can point at Ollama, LM Studio or llama.cpp on
+     their own machine, and those serve http://localhost. A bare `https:` here
+     silently blocked that, and the failure surfaced as a generic network error.
+     Loopback is not a meaningful exfiltration path.
+     frame-ancestors is deliberately absent: it is ignored in a <meta> CSP, and
+     GitHub Pages cannot set response headers, so listing it would only imply a
+     protection that is not actually in force. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval';
   style-src 'self' 'unsafe-inline';
   img-src 'self' data:;
-  connect-src https:;
+  connect-src https: http://localhost:* http://127.0.0.1:*;
   worker-src 'self' blob:;
   base-uri 'none';
   form-action 'none';
-  frame-ancestors 'none';
   object-src 'none'">
 <meta name="referrer" content="no-referrer">
 

@@ -55,8 +55,12 @@ for (const c of vectors.cases) {
       'watermark verdict differs',
     );
 
+    // `name` is compared too: the browser labels findings from a generated
+    // table rather than the full UCD, and a missing entry would show
+    // "<unnamed>" where the CLI shows a real Unicode name.
     const mine = got.findings.map((f) => ({
       codepoint: f.codepoint,
+      name: f.name,
       kind: f.kind,
       count: f.count,
       kept: f.keptCount,

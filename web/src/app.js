@@ -5,7 +5,7 @@
  * assigned to innerHTML — every dynamic string goes through textContent.
  */
 
-import { clean, scan, diffOps, hexOf } from './layer-a.js';
+import { clean, scan, diffOps } from './layer-a.js';
 import { PROVIDERS, browserProviders, byId, listModels } from './providers.js';
 import { STRENGTHS, buildPrompt, divergence, rewrite, RewriteError } from './rewrite.js';
 import { EXAMPLES, SAMPLE_NOTE, watermarkedSample } from './examples.js';
@@ -202,19 +202,14 @@ function renderReveal(s, text, opts) {
     if (plain) { host.appendChild(document.createTextNode(plain)); plain = ''; }
   };
 
-  const keptSet = new Set();
-  if (!opts.stripEmojiGlue) {
-    for (const op of diffOps(text, opts)) {
-      if (op.op === 'equal') continue;
-      keptSet.add(op);
-    }
-  }
+  // Which source offsets the cleaner will actually touch. A load-bearing
+  // character stays inside an "equal" run, so it never lands in this set and
+  // is drawn as a kept chip instead.
   const removedPositions = new Set();
   {
     let pos = 0;
     for (const op of diffOps(text, opts)) {
-      if (op.op === 'equal') { pos += Array.from(op.text).length; continue; }
-      removedPositions.add(pos);
+      if (op.op !== 'equal') removedPositions.add(pos);
       pos += Array.from(op.text).length;
     }
   }
@@ -273,12 +268,14 @@ $('copy-out').addEventListener('click', async () => {
 let currentMode = 'examples';
 let abortController = null;
 let localGenerate = null;
+let loadedLocalId = null;
 
 function currentProvider() {
   return byId($('rw-provider').value) || browserProviders()[0];
 }
 
 function setMode(mode) {
+  const changed = mode !== currentMode;
   currentMode = mode;
   $('cfg-key').hidden = mode !== 'key';
   $('cfg-local').hidden = mode !== 'local';
@@ -286,6 +283,17 @@ function setMode(mode) {
   $('cfg-shared').hidden = mode === 'examples';
   $('rw-panes').hidden = mode === 'examples';
   $('rw-controls').hidden = mode === 'examples';
+
+  // A result belongs to the mode that produced it. Leaving a genuine API
+  // result on screen after switching to Examples would park it directly above
+  // the "these are hand-written, not model output" notice and make the page
+  // contradict itself.
+  if (changed) {
+    $('rw-result').hidden = true;
+    $('rw-prompt-block').hidden = true;
+    $('rw-progress').textContent = '';
+  }
+
   if (mode === 'local') refreshWebgpu();
 }
 
@@ -431,6 +439,16 @@ $('rw-src').addEventListener('input', () => {
 
 /* local model */
 
+function initLocalModelSwitching() {
+  $('local-model').addEventListener('change', () => {
+    if (loadedLocalId && loadedLocalId !== $('local-model').value) {
+      localGenerate = null;
+      $('local-status').textContent = 'Not loaded. This model will download on first use.';
+      $('local-progress').style.width = '0%';
+    }
+  });
+}
+
 async function refreshWebgpu() {
   const warn = $('webgpu-warn');
   const ok = await webgpuUsable();
@@ -454,8 +472,12 @@ function initLocalModels() {
 }
 
 async function ensureLocalModel() {
-  if (localGenerate) return localGenerate;
   const id = $('local-model').value;
+  // Keyed on the selection, not merely "have we loaded anything": caching on
+  // the latter meant picking a different model after one was already loaded
+  // silently kept using the old one. loadLocalModel() caches per id itself.
+  if (localGenerate && loadedLocalId === id) return localGenerate;
+  loadedLocalId = id;
   const status = $('local-status');
   const fill = $('local-progress');
 
@@ -694,6 +716,7 @@ function boot() {
   initProviders();
   initStrengths();
   initLocalModels();
+  initLocalModelSwitching();
   renderExamples();
   renderDemoCards();
   renderProviderTable();

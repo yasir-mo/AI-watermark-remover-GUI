@@ -33,7 +33,9 @@ export const PROVIDERS = [
       'Aggregates many models. Anything with a “:free” suffix costs nothing.',
     // OpenRouter asks callers to identify themselves; harmless and public.
     extraHeaders: () => ({
-      'HTTP-Referer': location.origin,
+      // Guarded: this module is also imported by the Node test runner,
+      // where `location` does not exist.
+      'HTTP-Referer': typeof location === 'undefined' ? '' : location.origin,
       'X-Title': 'wmtk Layer B',
     }),
     // Free models are discoverable at runtime.

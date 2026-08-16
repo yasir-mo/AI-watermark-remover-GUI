@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -101,8 +102,26 @@ def build_tables_js() -> str:
     out.append(f"export const CONFUSABLES = new Map([{confusables}]);\n\n")
 
     # Unicode names, so the browser can label a finding without shipping the
-    # whole UCD. Only the codepoints we can actually flag are included.
+    # whole UCD.
+    #
+    # This must cover EVERY codepoint classify() can flag, not just the
+    # enumerated ranges. The catch-all branch flags any Cf character, so a
+    # codepoint like U+180E MONGOLIAN VOWEL SEPARATOR would otherwise show as
+    # "<unnamed>" in the browser while Python reports its real name -- a
+    # divergence between the two implementations, which is exactly what this
+    # generator exists to prevent. Scanning the Cf category costs ~170 entries.
     names: dict[str, str] = {}
+
+    for cp in range(0x110000):
+        if unicodedata.category(chr(cp)) == "Cf":
+            names[f"{cp:X}"] = codepoint_name(cp)
+
+    # Confusables are visible letters, not Cf, so the sweep above misses them.
+    # Aggressive mode flags them, and without this every one displayed as
+    # "<unnamed>" in the browser while the CLI named it properly.
+    for cp in CONFUSABLES:
+        names[f"{cp:X}"] = codepoint_name(cp)
+
     for lo, hi in (
         *ZWJ_FAMILY,
         *BIDI,
@@ -150,6 +169,9 @@ CASES: list[tuple[str, str, dict]] = [
     ("variation-selector-supplementary", "x\U000e0100y", {}),
     ("interlinear", "a￹b￺c￻d", {}),
     ("deprecated-format", "a⁪b⁯c", {}),
+    # Hits the catch-all Cf branch rather than an enumerated range, which is
+    # where the JS name table used to fall back to "<unnamed>".
+    ("mongolian-vowel-separator", "a᠎b", {}),
     # Load-bearing: these must survive untouched.
     ("emoji-zwj-family", "\U0001f469‍\U0001f467", {}),
     ("emoji-zwj-long", "\U0001f468‍\U0001f469‍\U0001f466", {}),
@@ -226,6 +248,7 @@ def build_vectors() -> dict:
                             # Match Finding.to_dict(): the wire form is the
                             # "U+XXXX" string, not the raw integer.
                             "codepoint": f"U+{f.codepoint:04X}",
+                            "name": f.name,
                             "kind": f.kind,
                             "count": f.count,
                             "kept": f.kept_count,

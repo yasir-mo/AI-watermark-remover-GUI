@@ -40,8 +40,17 @@ export function setRemember(on) {
       }
     } else {
       local().removeItem(REMEMBER_FLAG);
-      // Demote: drop the persisted copies, keep the session ones.
-      for (const id of persistedProviders()) local().removeItem(PREFIX + id);
+      // Demote, do not destroy. A key loaded from localStorage in a fresh tab
+      // was never written to sessionStorage, so dropping the persisted copy
+      // outright would delete it entirely -- while the UI promises it survives
+      // until the tab closes. Copy it down first.
+      for (const id of persistedProviders()) {
+        const existing = local().getItem(PREFIX + id);
+        if (existing && !session().getItem(PREFIX + id)) {
+          session().setItem(PREFIX + id, existing);
+        }
+        local().removeItem(PREFIX + id);
+      }
     }
   } catch { /* storage unavailable; keys stay in memory only */ }
 }

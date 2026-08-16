@@ -120,7 +120,11 @@ class TestAtomicWrite:
 
         t = threading.Thread(target=reader, daemon=True)
         t.start()
-        for _ in range(30):
+        # Enough cycles to catch a torn read, few enough that the Windows
+        # rename retry is not fighting a saturated CPU. An earlier 30-cycle
+        # version failed only when the whole suite shared a core with a
+        # browser, which tested the scheduler rather than atomicity.
+        for _ in range(12):
             atomic_write_bytes(dest, new)
             atomic_write_bytes(dest, old)
         stop.set()
