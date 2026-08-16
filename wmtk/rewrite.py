@@ -55,8 +55,11 @@ Requirements:
 - Vary sentence boundaries and sentence length; split and merge sentences.
 - Replace content words and function words wherever meaning allows.
 - Preserve every fact, number, name, date, quotation, and technical identifier exactly.
-- Keep the same language and the same overall length (within 20%).
-- Output only the rewritten text. No preamble, no commentary, no quotation marks around it.
+- Keep the same language.
+- Match the original length closely. The original is {source_words} words, so write
+  between {min_words} and {max_words} words. Do not add material to pad it out.
+- Output only the rewritten text. No preamble, no commentary, no quotation marks
+  around it, and no explanation of what you changed.
 
 TEXT:
 {text}""",
@@ -68,7 +71,9 @@ Requirements:
   "In conclusion", "delve", "tapestry", "landscape") with concrete natural phrasing.
 - Cut hedging and filler. Prefer specific verbs over abstract nouns.
 - Preserve every fact, number, name, date, and quotation exactly.
-- Output only the rewritten text.
+- Match the original length closely. The original is {source_words} words, so write
+  between {min_words} and {max_words} words.
+- Output only the rewritten text. No preamble and no commentary.
 
 TEXT:
 {text}""",
@@ -95,7 +100,8 @@ TEXT:
     "backtranslate_back": """Translate the {pivot} text below into {source_language}.
 
 Translate faithfully and completely into natural, idiomatic {source_language}. Preserve
-every fact, number, name, date, and quotation. Output only the translation.
+every fact, number, name, date, and quotation. Add nothing that is not in the source.
+Output only the translation, with no preamble and no commentary.
 
 TEXT:
 {text}""",
@@ -113,14 +119,34 @@ Requirements:
 - Write in varied, natural prose. Do not mirror the bullet order mechanically if a
   better order exists, but keep the logical structure intact.
 - Match this register: {register}.
-- Target roughly {target_words} words.
-- Output only the document.
+- Write between {min_words} and {max_words} words.
+- Output only the document, with no preamble and no commentary.
 
 OUTLINE:
 {text}""",
 }
 
 _PIVOT_DEFAULT = "French"
+
+
+def count_words(text: str) -> int:
+    """Word count of the source, used to give the model a concrete target."""
+    return len(_WORD_RE.findall(text))
+
+
+def length_vars(text: str, tolerance: float = 0.1) -> dict[str, int]:
+    """Length targets shared by every prompt that should match the source.
+
+    A percentage on its own is weak guidance for a small model. An explicit
+    word range is followed far more reliably.
+    """
+    n = count_words(text)
+    return {
+        "source_words": n,
+        "min_words": max(1, round(n * (1 - tolerance))),
+        "max_words": max(1, round(n * (1 + tolerance))),
+        "target_words": n,
+    }
 
 
 def build_prompt(text: str, strength: str, **kw: Any) -> str:
@@ -132,7 +158,11 @@ def build_prompt(text: str, strength: str, **kw: Any) -> str:
         key = strength
     if key not in _PROMPTS:
         raise RewriteError(f"unknown strength {strength!r}; choose from {STRENGTHS}")
-    return _PROMPTS[key].format(text=text, pivot=kw.get("pivot", _PIVOT_DEFAULT))
+    return _PROMPTS[key].format(
+        text=text,
+        pivot=kw.get("pivot", _PIVOT_DEFAULT),
+        **length_vars(text),
+    )
 
 
 # --------------------------------------------------------------------------

@@ -275,3 +275,127 @@ test('the sample keeps its legitimate emoji joiner', () => {
   assert.equal(c.keptLoadBearing.emoji_sequence, 1);
   assert.ok(c.text.includes('\u{1F469}‍\u{1F4BC}'));
 });
+
+/* ── output length control (regression: 900 chars in, 4000 out) ──────────── */
+
+import { estimateTokens, tokenBudget, tidyModelOutput, countWords, lengthVars }
+  from '../src/rewrite.js';
+import { extractAssistantText } from '../src/local-model.js';
+
+test('token budget scales with the source instead of a fixed cap', () => {
+  const short = 'word '.repeat(50);   // ~250 chars
+  const long = 'word '.repeat(2000);  // ~10k chars
+  assert.ok(tokenBudget(short) < tokenBudget(long));
+  // A 900-character input must not be allowed 512 tokens of headroom.
+  const nineHundred = 'a'.repeat(900);
+  assert.ok(tokenBudget(nineHundred) < 512,
+    `budget for 900 chars was ${tokenBudget(nineHundred)}`);
+  assert.ok(tokenBudget(nineHundred) > estimateTokens(nineHundred),
+    'budget must leave room to finish a sentence');
+});
+
+test('token budget respects floor and ceiling', () => {
+  assert.equal(tokenBudget(''), 96);
+  assert.ok(tokenBudget('x'.repeat(500000)) <= 3072);
+});
+
+test('word count targets bracket the source by 10%', () => {
+  const v = lengthVars('one two three four five six seven eight nine ten');
+  assert.equal(v.source_words, 10);
+  assert.equal(v.min_words, 9);
+  assert.equal(v.max_words, 11);
+});
+
+test('prompts state a concrete word range', () => {
+  const text = 'word '.repeat(100);
+  for (const id of ['paraphrase', 'humanize']) {
+    const p = buildPrompt(text, id);
+    assert.ok(/between 90 and 110 words/.test(p), `${id} lacks a word range`);
+  }
+});
+
+test('countWords matches the divergence tokenizer', () => {
+  assert.equal(countWords('the committee met on Tuesday'), 5);
+  // Punctuation inside figures splits too: "$4.2" counts as 4 and 2.
+  assert.equal(countWords('revenue rose 12% to $4.2 million'), 7);
+  // The tokenizer splits on apostrophes, so contractions count as two. That is
+  // close enough for a length target and keeps it consistent with divergence().
+  assert.equal(countWords("it's"), 2);
+});
+
+/* extractAssistantText: the actual 4000-character bug */
+
+test('assistant text is read from a chat-array result', () => {
+  const out = [{ generated_text: [
+    { role: 'user', content: 'PROMPT' },
+    { role: 'assistant', content: 'the rewrite' },
+  ] }];
+  assert.equal(extractAssistantText(out, 'PROMPT'), 'the rewrite');
+});
+
+test('a string result never returns the prompt back', () => {
+  // Regression. `.at(-1)` on a string yields a character, `.content` is
+  // undefined, and the old fallback returned the whole string, prompt and all.
+  const prompt = 'Rewrite the text below.\n\nTEXT:\n' + 'source '.repeat(120);
+  const out = [{ generated_text: prompt + '\nTHE ACTUAL REWRITE' }];
+  const got = extractAssistantText(out, prompt);
+  assert.equal(got, 'THE ACTUAL REWRITE');
+  assert.ok(!got.includes('Rewrite the text below'), 'prompt leaked into output');
+  assert.ok(got.length < prompt.length / 5);
+});
+
+test('extractAssistantText tolerates junk', () => {
+  assert.equal(extractAssistantText(undefined, 'p'), '');
+  assert.equal(extractAssistantText([], 'p'), '');
+  assert.equal(extractAssistantText([{}], 'p'), '');
+});
+
+/* tidyModelOutput */
+
+test('preambles from small models are removed', () => {
+  for (const pre of [
+    "Sure! Here's the rewritten text:\n",
+    'Here is the rewrite:\n',
+    'Rewritten text:\n',
+    'Certainly, here you are:\n',
+  ]) {
+    assert.equal(tidyModelOutput(pre + 'The actual content.'), 'The actual content.',
+      `failed to strip: ${pre.trim()}`);
+  }
+});
+
+test('a whole-output code fence is unwrapped', () => {
+  assert.equal(tidyModelOutput('```\nplain content\n```'), 'plain content');
+  assert.equal(tidyModelOutput('```python\ndef f():\n    pass\n```'),
+    'def f():\n    pass');
+});
+
+test('chat role markers are stripped', () => {
+  assert.equal(tidyModelOutput('<|im_start|>assistant\nHello<|im_end|>').trim(),
+    'assistant\nHello');
+});
+
+test('tidying does not damage ordinary prose', () => {
+  const prose = 'The committee met on Tuesday. Revenue rose 12% to $4.2 million.';
+  assert.equal(tidyModelOutput(prose), prose);
+});
+
+test('code strength keeps its quotes', () => {
+  const code = '"use strict";\nconst x = 1;\nconsole.log("hello world here");';
+  assert.equal(tidyModelOutput(code, { unwrapQuotes: false }), code);
+});
+
+test('the pipeline tidies and length-limits what a model returns', async () => {
+  const source = 'The committee met on Tuesday and approved the budget. '.repeat(6);
+  let sawMaxTokens = null;
+  const r = await rewrite(source, {
+    provider: stubProvider,
+    layerAAfter: false,
+    localGenerate: async (prompt, opts) => {
+      sawMaxTokens = opts.maxNewTokens;
+      return "Sure! Here's the rewritten text:\n```\nA board convened Tuesday and signed off the spending plan.\n```";
+    },
+  });
+  assert.equal(r.text, 'A board convened Tuesday and signed off the spending plan.');
+  assert.ok(sawMaxTokens > 0 && sawMaxTokens < 3072, `maxNewTokens was ${sawMaxTokens}`);
+});

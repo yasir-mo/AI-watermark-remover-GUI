@@ -217,3 +217,51 @@ class TestRedirectRefusal:
         handler = _NoRedirect()
         with pytest.raises(RewriteError, match="refusing to follow"):
             handler.redirect_request(None, None, 302, "Found", {}, "http://evil.test/steal")
+
+
+class TestLengthTargets:
+    """Prompts must give the model a concrete word range.
+
+    A percentage alone is weak guidance for a small model. The JS side carries
+    the same wording, so both runtimes ask for the same thing.
+    """
+
+    def test_length_vars_bracket_by_ten_percent(self):
+        from wmtk.rewrite import length_vars
+
+        v = length_vars("one two three four five six seven eight nine ten")
+        assert v["source_words"] == 10
+        assert v["min_words"] == 9
+        assert v["max_words"] == 11
+
+    def test_length_vars_never_go_below_one(self):
+        from wmtk.rewrite import length_vars
+
+        v = length_vars("word")
+        assert v["min_words"] >= 1
+        assert v["max_words"] >= 1
+
+    def test_empty_text_does_not_crash(self):
+        from wmtk.rewrite import build_prompt, length_vars
+
+        assert length_vars("")["source_words"] == 0
+        build_prompt("", "paraphrase")
+
+    @pytest.mark.parametrize("strength", ["paraphrase", "humanize"])
+    def test_prompt_states_a_word_range(self, strength):
+        text = " ".join(["word"] * 100)
+        prompt = build_prompt(text, strength)
+        assert "between 90 and 110 words" in prompt
+
+    @pytest.mark.parametrize("strength", STRENGTHS)
+    def test_no_unfilled_placeholders(self, strength):
+        import re
+
+        prompt = build_prompt(" ".join(["word"] * 40), strength)
+        leftover = re.findall(r"\{\w+\}", prompt)
+        assert leftover == [], f"{strength} left {leftover} unfilled"
+
+    def test_count_words_matches_the_divergence_tokenizer(self):
+        from wmtk.rewrite import count_words
+
+        assert count_words("the committee met on Tuesday") == 5

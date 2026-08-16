@@ -32,6 +32,48 @@ export const MODELS = [
   },
 ];
 
+/**
+ * Pull the assistant's reply out of a transformers.js result.
+ *
+ * The shape varies. With chat input `generated_text` is an array of messages;
+ * in other paths it is a plain string. An earlier version did
+ * `generated_text?.at?.(-1)?.content`, which on a string calls
+ * String.prototype.at and yields the last character, so `.content` was
+ * undefined and the fallback returned the whole string. That string contains
+ * the templated prompt, so a 900-character input came back as roughly 4000
+ * characters of "rewrite" with the instructions embedded in it.
+ *
+ * This never returns the prompt: if no assistant message is found, any echoed
+ * prompt prefix is removed before the remainder is used.
+ */
+export function extractAssistantText(out, prompt = '') {
+  const first = Array.isArray(out) ? out[0] : out;
+  const gen = first?.generated_text ?? first;
+
+  if (Array.isArray(gen)) {
+    for (let i = gen.length - 1; i >= 0; i--) {
+      const m = gen[i];
+      if (m && typeof m === 'object' && m.role === 'assistant' && m.content) {
+        return String(m.content).trim();
+      }
+    }
+    const last = gen[gen.length - 1];
+    if (last && typeof last === 'object' && typeof last.content === 'string') {
+      return last.content.trim();
+    }
+  }
+
+  let text = typeof gen === 'string' ? gen : '';
+  if (!text) return '';
+
+  const needle = String(prompt).trim();
+  if (needle) {
+    const at = text.lastIndexOf(needle);
+    if (at !== -1) text = text.slice(at + needle.length);
+  }
+  return text.trim();
+}
+
 export function webgpuAvailable() {
   return typeof navigator !== 'undefined' && 'gpu' in navigator;
 }
@@ -90,22 +132,21 @@ export async function loadLocalModel(modelId, onProgress = () => {}) {
 
     onProgress({ status: 'ready', message: 'model ready' });
 
-    return async function generate(prompt, { temperature = 0.9, signal } = {}) {
+    return async function generate(
+      prompt,
+      { temperature = 0.9, signal, maxNewTokens = 512 } = {},
+    ) {
       if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
       const out = await generator(
         [{ role: 'user', content: prompt }],
         {
-          max_new_tokens: 512,
+          max_new_tokens: maxNewTokens,
           temperature,
           do_sample: temperature > 0,
           return_full_text: false,
         },
       );
-      const text =
-        out?.[0]?.generated_text?.at?.(-1)?.content ??
-        out?.[0]?.generated_text ??
-        '';
-      return String(text).trim();
+      return extractAssistantText(out, prompt);
     };
   })();
 
