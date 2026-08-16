@@ -3,10 +3,11 @@ name: Deploy demo to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - 'web/**'
-      - 'conformance/**'
-      - '.github/workflows/pages.yml'
+    # No paths filter. GitHub decides which paths changed by diffing against
+    # the previous head, and after a force push that commit no longer exists,
+    # so the filter matches nothing and the deploy is skipped while the site
+    # keeps serving the old build. The verify job below takes seconds and
+    # gates every publish, so running on each push costs little.
   workflow_dispatch:
 
 permissions:
