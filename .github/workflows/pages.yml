@@ -46,6 +46,9 @@ jobs:
           node --test web/test/conformance.test.mjs
           node --test web/test/rewrite.test.mjs
 
+      - name: The page boots in a browser with no console errors
+        run: python -m tools.check_page_boots --require-browser
+
       - name: No stray secrets in the published directory
         run: |
           if grep -rInE "(sk-[A-Za-z0-9]{16,}|gsk_[A-Za-z0-9]{16,}|AIza[A-Za-z0-9_-]{20,})" web/; then

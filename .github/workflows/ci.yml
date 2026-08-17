@@ -104,6 +104,12 @@ jobs:
       - name: Every module parses
         run: for f in web/src/*.js; do node --check "$f"; done
 
+      # The only check that loads the page in a browser. A duplicate `const`
+      # once shipped: a static SyntaxError that killed every control on the
+      # site while all the file-level checks stayed green.
+      - name: The page boots in a browser with no console errors
+        run: python -m tools.check_page_boots --require-browser
+
       - name: Every DOM id the app touches exists in the HTML
         run: |
           python - <<'PY'
