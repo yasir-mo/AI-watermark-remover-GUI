@@ -568,10 +568,11 @@ $('rw-run').addEventListener('click', async () => {
 
 function showResult(r) {
   $('rw-result').hidden = false;
-  const pct = Math.round((r.lengthRatio - 1) * 100);
+  const lengthPct = Math.round((r.lengthRatio - 1) * 100);
   const lengthBit = r.withinTolerance
     ? `${r.outputWords} of ${r.inputWords} words, on target`
-    : `${r.outputWords} of ${r.inputWords} words (${pct >= 0 ? '+' : ''}${pct}%), off target`;
+    : `${r.outputWords} of ${r.inputWords} words ` +
+      `(${lengthPct >= 0 ? '+' : ''}${lengthPct}%), off target`;
   $('rw-stats').textContent =
     `${r.provider} · ${r.model || 'in-browser'} · ${r.strength} · ${lengthBit}` +
     (r.sections > 1 ? ` · ${r.sections} sections` : '');
@@ -587,7 +588,7 @@ function showResult(r) {
   if (lenEl) {
     lenEl.textContent = r.withinTolerance
       ? `length on target (±${Math.round(r.tolerance * 100)}%)`
-      : `length ${pct >= 0 ? '+' : ''}${pct}% vs source`;
+      : `length ${lengthPct >= 0 ? '+' : ''}${lengthPct}% vs source`;
     lenEl.className = 'meter-label ' + (r.withinTolerance ? 'good-text' : 'warn-text');
   }
 
