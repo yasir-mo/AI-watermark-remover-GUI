@@ -44,7 +44,7 @@ from .openapi import spec
 from .rewrite import BackendConfig, RewriteError, rewrite
 from .safety import MAX_INPUT_BYTES
 
-LOG = logging.getLogger("wmtk.server")
+LOG = logging.getLogger("scrubai.server")
 
 API_KEY_ENV = "WATERMARKS_SERVER_API_KEY"
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
@@ -248,7 +248,7 @@ ROUTES: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = f"wmtk/{__version__}"
+    server_version = f"scrubai/{__version__}"
     sys_version = ""
     protocol_version = "HTTP/1.1"
 
@@ -428,7 +428,7 @@ class Server(ThreadingHTTPServer):
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="wmtk-server",
+        prog="scrubai-server",
         description="Local watermark removal service (stdlib only).",
     )
     p.add_argument("--host", default="127.0.0.1")
@@ -489,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
     installed = [n for n, t in caps["tools"].items() if t["installed"]]
     missing = [n for n, t in caps["tools"].items() if not t["installed"]]
 
-    LOG.info("wmtk %s listening on http://%s:%d", __version__, args.host, args.port)
+    LOG.info("scrubai %s listening on http://%s:%d", __version__, args.host, args.port)
     LOG.info("auth: %s", "bearer token required" if api_key else "none (loopback only)")
     LOG.info("tools installed: %s", ", ".join(installed) or "none")
     if missing:

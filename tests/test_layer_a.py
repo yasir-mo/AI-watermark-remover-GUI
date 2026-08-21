@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from scrubai.layer_a import clean, diff_ops, scan
+from scrubai.unicode_tables import classify, is_load_bearing
 from tests.conftest import INJECTED
-from wmtk.layer_a import clean, diff_ops, scan
-from wmtk.unicode_tables import classify, is_load_bearing
 
 
 class TestScan:

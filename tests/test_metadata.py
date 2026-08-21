@@ -8,8 +8,8 @@ import zipfile
 
 import pytest
 
+from scrubai.metadata import detect_format, html_md, jpeg, ooxml, pdf, png, svg, webp
 from tests.conftest import SCAN_BYTES
-from wmtk.metadata import detect_format, html_md, jpeg, ooxml, pdf, png, svg, webp
 
 
 def kinds(result) -> set[str]:
@@ -296,13 +296,13 @@ class TestXmlEntityGuards:
     XXE = b'<?xml version="1.0"?><!DOCTYPE svg SYSTEM "http://attacker.test/x.dtd"><svg/>'
 
     def test_entity_declaration_refused(self):
-        from wmtk.metadata.safexml import UnsafeXml, fromstring
+        from scrubai.metadata.safexml import UnsafeXml, fromstring
 
         with pytest.raises(UnsafeXml, match="ENTITY"):
             fromstring(self.BOMB)
 
     def test_external_doctype_refused(self):
-        from wmtk.metadata.safexml import UnsafeXml, fromstring
+        from scrubai.metadata.safexml import UnsafeXml, fromstring
 
         with pytest.raises(UnsafeXml, match="external identifier"):
             fromstring(self.XXE)
@@ -316,7 +316,7 @@ class TestXmlEntityGuards:
         assert any("ENTITY" in w for w in svg.inspect(self.BOMB).warnings)
 
     def test_ordinary_svg_still_parses(self, svg_with_metadata):
-        from wmtk.metadata.safexml import fromstring
+        from scrubai.metadata.safexml import fromstring
 
         assert fromstring(svg_with_metadata) is not None
 
@@ -324,7 +324,7 @@ class TestXmlEntityGuards:
         """Regression: an expat-handler guard silently fails open on 3.14+."""
         import xml.etree.ElementTree as ET
 
-        from wmtk.metadata.safexml import scan_for_unsafe
+        from scrubai.metadata.safexml import scan_for_unsafe
 
         # Whether or not this interpreter exposes the expat object, the scan
         # must still catch the bomb.
@@ -366,7 +366,7 @@ class TestExiftoolReportFiltering:
     )
     def test_structural_properties_are_not_findings(self, group, name):
         """A cleaned PNG must report zero findings. Its dimensions are not metadata."""
-        from wmtk.metadata import _exiftool_kind
+        from scrubai.metadata import _exiftool_kind
 
         assert _exiftool_kind(group, name) is None, f"{group}:{name} should be ignored"
 
@@ -387,7 +387,7 @@ class TestExiftoolReportFiltering:
         ],
     )
     def test_provenance_groups_are_reported(self, group, name, kind):
-        from wmtk.metadata import _exiftool_kind
+        from scrubai.metadata import _exiftool_kind
 
         assert _exiftool_kind(group, name) == kind
 
@@ -398,7 +398,7 @@ class TestExiftoolReportFiltering:
     def test_textual_tags_survive_the_allowlist(self, name):
         """PNG:Software is a claim about who made the file, so it is reported
         even though the PNG group itself is structural."""
-        from wmtk.metadata import _exiftool_kind
+        from scrubai.metadata import _exiftool_kind
 
         assert _exiftool_kind("PNG", name) == "text"
 
@@ -407,7 +407,7 @@ class TestExiftoolReportFiltering:
         produce zero findings, so clean-then-verify actually reads as clean."""
         import json as _json
 
-        from wmtk import metadata as md
+        from scrubai import metadata as md
 
         canned = _json.dumps(
             [

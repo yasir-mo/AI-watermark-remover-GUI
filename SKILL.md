@@ -1,6 +1,6 @@
 ---
 name: watermark-removal
-description: Use when the user wants to find or remove AI watermarks from text or files - invisible Unicode characters, C2PA/Content Credentials manifests, EXIF/XMP metadata, document properties, or statistical token-sampling watermarks. Talks to a local wmtk HTTP service via curl.
+description: Use when the user wants to find or remove AI watermarks from text or files - invisible Unicode characters, C2PA/Content Credentials manifests, EXIF/XMP metadata, document properties, or statistical token-sampling watermarks. Talks to a local scrubai HTTP service via curl.
 ---
 
 # Watermark removal
@@ -33,7 +33,7 @@ curl -s http://127.0.0.1:8765/capabilities
 service is not running. Tell the user to start it:
 
 ```bash
-python -m wmtk.server
+python -m scrubai.server
 ```
 
 `/capabilities` tells you which optional tools are installed. Read it before
@@ -247,7 +247,7 @@ Formats: PNG, JPEG, WebP, SVG, PDF, DOCX, XLSX, PPTX, ODT, HTML, Markdown, text.
 
 | Symptom | Cause | Do this |
 |---|---|---|
-| `Connection refused` | Service is down | `python -m wmtk.server` |
+| `Connection refused` | Service is down | `python -m scrubai.server` |
 | `401` | Bearer token needed | Ask the user for `WATERMARKS_SERVER_API_KEY` |
 | `413` | Over the size cap | Check `limits.max_input_bytes` in `/capabilities` |
 | `400 file is not valid base64` | Line wrapping | Use `base64 -w0`, or the Python one-liner above |

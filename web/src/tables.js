@@ -1,5 +1,5 @@
 // GENERATED FILE -- DO NOT EDIT.
-// Source: wmtk/unicode_tables.py
+// Source: scrubai/unicode_tables.py
 // Regenerate: python -m tools.gen_web_assets
 
 export const SOURCE_VERSION = "1.0.0";

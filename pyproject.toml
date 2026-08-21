@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wmtk"
+name = "scrubai"
 version = "1.0.0"
 description = "Detect and remove AI watermarks from text and files"
 readme = "README.md"
@@ -21,25 +21,25 @@ dev = [
 ]
 
 [project.scripts]
-wmtk-server = "wmtk.server:main"
-wmtk-inspect-text = "wmtk.cli.inspect_text:main"
-wmtk-clean-text = "wmtk.cli.clean_text:main"
-wmtk-rewrite-text = "wmtk.cli.rewrite_text:main"
-wmtk-clean-file = "wmtk.cli.clean_file:main"
-wmtk-detect-watermark = "wmtk.cli.detect_text_watermark:main"
+scrubai-server = "scrubai.server:main"
+scrubai-inspect-text = "scrubai.cli.inspect_text:main"
+scrubai-clean-text = "scrubai.cli.clean_text:main"
+scrubai-rewrite-text = "scrubai.cli.rewrite_text:main"
+scrubai-clean-file = "scrubai.cli.clean_file:main"
+scrubai-detect-watermark = "scrubai.cli.detect_text_watermark:main"
 
 [tool.setuptools]
-packages = ["wmtk", "wmtk.cli", "wmtk.metadata"]
+packages = ["scrubai", "scrubai.cli", "scrubai.metadata"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q --strict-markers"
-filterwarnings = ["error::DeprecationWarning:wmtk.*"]
+filterwarnings = ["error::DeprecationWarning:scrubai.*"]
 
 [tool.coverage.run]
-source = ["wmtk"]
-omit = ["wmtk/cli/detect_text_watermark.py"]  # needs torch, exercised separately
+source = ["scrubai"]
+omit = ["scrubai/cli/detect_text_watermark.py"]  # needs torch, exercised separately
 
 [tool.ruff]
 line-length = 96
@@ -56,7 +56,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "RUF001", "RUF003"]
 # The Unicode tables must contain the exact confusable characters they describe.
-"wmtk/unicode_tables.py" = ["RUF001", "RUF003"]
+"scrubai/unicode_tables.py" = ["RUF001", "RUF003"]
 # Likewise the conformance cases: each one exists to pin the behaviour of a
 # specific ambiguous or invisible character, so it has to contain that character.
 "tools/gen_web_assets.py" = ["RUF001", "RUF003"]

@@ -11,8 +11,8 @@ import urllib.request
 
 import pytest
 
-from wmtk import __version__
-from wmtk.server import Handler, Server
+from scrubai import __version__
+from scrubai.server import Handler, Server
 
 
 def _free_port() -> int:
@@ -327,7 +327,7 @@ class TestInputGuards:
 
     def test_oversized_declared_length_413s(self, server):
         """Reject on Content-Length before reading the body."""
-        from wmtk.server import MAX_BODY_BYTES
+        from scrubai.server import MAX_BODY_BYTES
 
         conn = socket.create_connection(("127.0.0.1", int(server.base.rsplit(":", 1)[1])))
         conn.sendall(
@@ -361,7 +361,7 @@ class TestStaticUi:
         with urllib.request.urlopen(server.base + "/ui/") as r:
             body = r.read()
         assert r.status == 200
-        assert b"<title>wmtk" in body
+        assert b"<title>ScrubAI" in body
 
     def test_assets_served_with_types(self, server):
         for path, ctype in (("/ui/style.css", "text/css"), ("/ui/app.js", "javascript")):
@@ -371,10 +371,10 @@ class TestStaticUi:
     @pytest.mark.parametrize(
         "path",
         [
-            "/ui/../wmtk/server.py",
-            "/ui/%2e%2e/wmtk/server.py",
-            "/ui/..%2fwmtk%2fserver.py",
-            "/ui/....//wmtk/server.py",
+            "/ui/../scrubai/server.py",
+            "/ui/%2e%2e/scrubai/server.py",
+            "/ui/..%2fscrubai%2fserver.py",
+            "/ui/....//scrubai/server.py",
         ],
     )
     def test_traversal_refused(self, server, path):

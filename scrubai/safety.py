@@ -161,7 +161,7 @@ def atomic_write_bytes(path: str | os.PathLike[str], data: bytes) -> None:
     parent = dest.parent
     parent.mkdir(parents=True, exist_ok=True)
 
-    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".wmtk-", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".scrubai-", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(data)
@@ -238,4 +238,4 @@ def run_tool(
 
 def temp_workdir() -> tempfile.TemporaryDirectory[str]:
     """A private 0700 temp directory that cleans itself up."""
-    return tempfile.TemporaryDirectory(prefix="wmtk-")
+    return tempfile.TemporaryDirectory(prefix="scrubai-")

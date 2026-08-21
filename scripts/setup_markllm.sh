@@ -88,8 +88,8 @@ Done.
 
 Then, from the repo root:
 
-  python -m wmtk.cli.detect_text_watermark --scheme kgw detect sample.txt
-  python -m wmtk.cli.detect_text_watermark --scheme kgw generate "Once upon a time" --with-unwatermarked
+  python -m scrubai.cli.detect_text_watermark --scheme kgw detect sample.txt
+  python -m scrubai.cli.detect_text_watermark --scheme kgw generate "Once upon a time" --with-unwatermarked
 
 Detection only tells you whether text carries a mark under the scheme, key, and
 config you supply. A negative result is not evidence that no watermark exists.

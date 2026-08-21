@@ -36,7 +36,7 @@ export const PROVIDERS = [
       // Guarded: this module is also imported by the Node test runner,
       // where `location` does not exist.
       'HTTP-Referer': typeof location === 'undefined' ? '' : location.origin,
-      'X-Title': 'wmtk Layer B',
+      'X-Title': 'scrubai Layer B',
     }),
     // Free models are discoverable at runtime.
     filterModels: (list) =>

@@ -1,4 +1,6 @@
-# AI Watermark Removal Toolkit
+# ScrubAI
+
+One model scrubs off what another model signed.
 
 Finds and removes the marks that AI tools attach to text and files: invisible
 Unicode characters, C2PA provenance manifests, EXIF and XMP metadata, document
@@ -73,7 +75,7 @@ node --test web/test/conformance.test.mjs
 
 ```bash
 git clone <this repo> && cd AI-watermark-remover-GUI
-python -m wmtk.server
+python -m scrubai.server
 ```
 
 Open <http://127.0.0.1:8765/ui/>.
@@ -87,7 +89,7 @@ pip install -e .
 ### Docker
 
 ```bash
-docker compose up -d wmtk
+docker compose up -d scrubai
 ```
 
 The image bundles exiftool, qpdf, and c2patool, so PDFs get the full structural
@@ -98,24 +100,24 @@ the port is published to loopback only.
 
 ```bash
 # What is hiding in this text?
-python -m wmtk.cli.inspect_text article.md
+python -m scrubai.cli.inspect_text article.md
 
 # Take it out
-python -m wmtk.cli.clean_text article.md -o article.clean.md --stats
+python -m scrubai.cli.clean_text article.md -o article.clean.md --stats
 
 # Strip a file's metadata, plus Layer A if it is a text format
-python -m wmtk.cli.clean_file report.pdf --inspect
-python -m wmtk.cli.clean_file report.pdf -o report.clean.pdf
+python -m scrubai.cli.clean_file report.pdf --inspect
+python -m scrubai.cli.clean_file report.pdf -o report.clean.pdf
 
 # Layer B, through a local model
-python -m wmtk.cli.rewrite_text draft.txt --backend ollama --model llama3.1 \
+python -m scrubai.cli.rewrite_text draft.txt --backend ollama --model llama3.1 \
     --strength humanize --candidates 3
 ```
 
 `inspect_text` exits `1` when it finds something, so it drops into a pipeline:
 
 ```bash
-python -m wmtk.cli.inspect_text --json post.md | jq .findings
+python -m scrubai.cli.inspect_text --json post.md | jq .findings
 ```
 
 ## Layer A: invisible characters
@@ -200,7 +202,7 @@ own distribution, using its own key or none, so the original pattern does not
 carry over.
 
 ```bash
-python -m wmtk.cli.rewrite_text draft.md \
+python -m scrubai.cli.rewrite_text draft.md \
     --backend ollama --model mistral --strength paraphrase --candidates 3
 ```
 
@@ -327,7 +329,7 @@ rejection, auth, and raw-socket path traversal.
 ## Layout
 
 ```
-wmtk/
+scrubai/
   unicode_tables.py     codepoint classification and load-bearing rules
   layer_a.py            scan, clean, diff
   rewrite.py            Layer B pipeline, backends, scoring
