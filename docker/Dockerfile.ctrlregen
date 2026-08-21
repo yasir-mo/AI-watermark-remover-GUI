@@ -8,14 +8,14 @@
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    HF_HOME=/home/wmtk/.cache/huggingface \
+    HF_HOME=/home/scrubai/.cache/huggingface \
     WATERMARKS_CTRLREGEN_PATH=/opt/ctrlregen
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git ca-certificates libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --uid 10001 wmtk
+RUN useradd --create-home --uid 10001 scrubai
 
 ARG TORCH_INDEX=cpu
 RUN pip install --no-cache-dir \
@@ -30,8 +30,8 @@ RUN pip install --no-cache-dir \
         "numpy==1.26.4"
 
 WORKDIR /app
-COPY --chown=wmtk:wmtk wmtk/ ./wmtk/
-USER wmtk
+COPY --chown=scrubai:scrubai scrubai/ ./scrubai/
+USER scrubai
 
 ENTRYPOINT ["python", "-c", "import sys; print('CtrlRegen backend image. Mount weights at /weights and invoke your pipeline script.'); print('args:', sys.argv[1:])"]
 CMD ["--help"]

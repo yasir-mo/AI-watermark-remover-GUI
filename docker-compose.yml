@@ -1,6 +1,6 @@
 # Core service plus optional heavy backends.
 #
-#   docker compose up -d wmtk              # the service and the UI
+#   docker compose up -d scrubai              # the service and the UI
 #   docker compose run --rm markllm ...    # one-shot detection
 #
 # The heavy images are large (multi-GB, CUDA optional) and are built locally on
@@ -8,12 +8,12 @@
 
 services:
 
-  wmtk:
+  scrubai:
     build:
       context: .
       dockerfile: Dockerfile
-    image: wmtk:local
-    container_name: wmtk
+    image: scrubai:local
+    container_name: scrubai
     # Published to loopback only. The container itself binds 0.0.0.0, which is
     # why WATERMARKS_ALLOW_INSECURE_BIND is set below.
     ports:
@@ -47,26 +47,26 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.markllm
-    image: wmtk-markllm:local
+    image: scrubai-markllm:local
     profiles: ["heavy"]
     volumes:
       - ./work:/work
-      - hf-cache:/home/wmtk/.cache/huggingface
+      - hf-cache:/home/scrubai/.cache/huggingface
     environment:
       HF_HUB_OFFLINE: "${HF_HUB_OFFLINE:-0}"
-    entrypoint: ["python", "-m", "wmtk.cli.detect_text_watermark"]
+    entrypoint: ["python", "-m", "scrubai.cli.detect_text_watermark"]
     command: ["--help"]
 
   synthid:
     build:
       context: .
       dockerfile: docker/Dockerfile.synthid
-    image: wmtk-synthid:local
+    image: scrubai-synthid:local
     profiles: ["heavy"]
     volumes:
       - ./work:/work
-      - hf-cache:/home/wmtk/.cache/huggingface
-    entrypoint: ["python", "-m", "wmtk.cli.detect_text_watermark",
+      - hf-cache:/home/scrubai/.cache/huggingface
+    entrypoint: ["python", "-m", "scrubai.cli.detect_text_watermark",
                  "--scheme", "synthid"]
     command: ["--help"]
 
@@ -74,11 +74,11 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.ctrlregen
-    image: wmtk-ctrlregen:local
+    image: scrubai-ctrlregen:local
     profiles: ["heavy"]
     volumes:
       - ./work:/work
-      - hf-cache:/home/wmtk/.cache/huggingface
+      - hf-cache:/home/scrubai/.cache/huggingface
     # Pixel-domain watermark removal by regeneration. Needs a GPU to be
     # practical; uncomment to pass one through.
     # deploy:

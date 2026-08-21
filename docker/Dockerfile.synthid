@@ -1,8 +1,8 @@
 # SynthID-Text scoring. Same base as the MarkLLM image; the scheme is selected
 # at runtime, so this exists mainly to pin a separate config and cache.
-FROM wmtk-markllm:local
+FROM scrubai-markllm:local
 
 ENV WATERMARKS_SYNTHID_PATH=/opt/markllm
 
-ENTRYPOINT ["python", "-m", "wmtk.cli.detect_text_watermark", "--scheme", "synthid"]
+ENTRYPOINT ["python", "-m", "scrubai.cli.detect_text_watermark", "--scheme", "synthid"]
 CMD ["--help"]

@@ -1,4 +1,4 @@
-"""wmtk -- AI watermark removal toolkit.
+"""scrubai -- AI watermark removal toolkit.
 
 Three layers:
   A  invisible Unicode characters embedded in text (deterministic, lossless)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from wmtk.rewrite import (
+from scrubai.rewrite import (
     API_KEY_ENV,
     STRENGTHS,
     BackendConfig,
@@ -175,14 +175,14 @@ class TestPipeline:
                 "On 14 March 2023 a panel published what it had found.",  # diverged
             ]
         )
-        monkeypatch.setattr("wmtk.rewrite.call_model", lambda p, c: next(outputs))
+        monkeypatch.setattr("scrubai.rewrite.call_model", lambda p, c: next(outputs))
         cfg = BackendConfig(backend="ollama")
         result = rewrite(SAMPLE, cfg=cfg, candidates=2, layer_a_after=False)
         assert result.text.startswith("On 14 March 2023")
 
     def test_layer_a_runs_over_model_output(self, monkeypatch):
         dirty = "The panel​ published⁠ its findings."
-        monkeypatch.setattr("wmtk.rewrite.call_model", lambda p, c: dirty)
+        monkeypatch.setattr("scrubai.rewrite.call_model", lambda p, c: dirty)
         result = rewrite(SAMPLE, cfg=BackendConfig(backend="ollama"))
         assert "​" not in result.text
         assert "⁠" not in result.text
@@ -191,7 +191,7 @@ class TestPipeline:
 
     def test_layer_a_can_be_disabled(self, monkeypatch):
         dirty = "The panel​ published."
-        monkeypatch.setattr("wmtk.rewrite.call_model", lambda p, c: dirty)
+        monkeypatch.setattr("scrubai.rewrite.call_model", lambda p, c: dirty)
         result = rewrite(SAMPLE, cfg=BackendConfig(backend="ollama"), layer_a_after=False)
         assert "​" in result.text
 
@@ -212,7 +212,7 @@ class TestPipeline:
 
 class TestRedirectRefusal:
     def test_redirect_handler_raises(self):
-        from wmtk.rewrite import _NoRedirect
+        from scrubai.rewrite import _NoRedirect
 
         handler = _NoRedirect()
         with pytest.raises(RewriteError, match="refusing to follow"):
@@ -227,7 +227,7 @@ class TestLengthTargets:
     """
 
     def test_length_vars_bracket_by_ten_percent(self):
-        from wmtk.rewrite import length_vars
+        from scrubai.rewrite import length_vars
 
         v = length_vars("one two three four five six seven eight nine ten")
         assert v["source_words"] == 10
@@ -235,14 +235,14 @@ class TestLengthTargets:
         assert v["max_words"] == 11
 
     def test_length_vars_never_go_below_one(self):
-        from wmtk.rewrite import length_vars
+        from scrubai.rewrite import length_vars
 
         v = length_vars("word")
         assert v["min_words"] >= 1
         assert v["max_words"] >= 1
 
     def test_empty_text_does_not_crash(self):
-        from wmtk.rewrite import build_prompt, length_vars
+        from scrubai.rewrite import build_prompt, length_vars
 
         assert length_vars("")["source_words"] == 0
         build_prompt("", "paraphrase")
@@ -262,6 +262,6 @@ class TestLengthTargets:
         assert leftover == [], f"{strength} left {leftover} unfilled"
 
     def test_count_words_matches_the_divergence_tokenizer(self):
-        from wmtk.rewrite import count_words
+        from scrubai.rewrite import count_words
 
         assert count_words("the committee met on Tuesday") == 5

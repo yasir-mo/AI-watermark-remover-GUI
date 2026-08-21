@@ -1,6 +1,6 @@
 /* Layer B in the browser.
  *
- * Prompts, divergence scoring and candidate selection mirror wmtk/rewrite.py
+ * Prompts, divergence scoring and candidate selection mirror scrubai/rewrite.py
  * so the hosted demo and the local CLI behave the same way.
  *
  * The request goes from this page straight to the provider. The key is never

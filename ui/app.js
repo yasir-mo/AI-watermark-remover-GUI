@@ -1,11 +1,11 @@
-/* wmtk web client. No framework, no build step, no external requests. */
+/* scrubai web client. No framework, no build step, no external requests. */
 'use strict';
 
 const $ = (id) => document.getElementById(id);
 
 /* Bearer token for this service, if the operator set one. Held in memory and
    in sessionStorage only, so it dies with the tab. */
-let SERVICE_TOKEN = sessionStorage.getItem('wmtk_token') || '';
+let SERVICE_TOKEN = sessionStorage.getItem('scrubai_token') || '';
 
 /* Rewrite-backend key. Held in memory only. Never persisted, never logged. */
 let REWRITE_KEY = '';
@@ -32,7 +32,7 @@ async function api(path, body) {
   if (!resp.ok) {
     if (resp.status === 401) {
       const t = prompt('This service requires a bearer token.');
-      if (t) { SERVICE_TOKEN = t; sessionStorage.setItem('wmtk_token', t); return api(path, body); }
+      if (t) { SERVICE_TOKEN = t; sessionStorage.setItem('scrubai_token', t); return api(path, body); }
     }
     const msg = (data && data.error) || `HTTP ${resp.status}`;
     const detail = (data && data.detail) ? `: ${data.detail}` : '';

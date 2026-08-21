@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from wmtk import safety
-from wmtk.safety import (
+from scrubai import safety
+from scrubai.safety import (
     MAGIC_PREFIXES,
     BinaryInputRefused,
     InputTooLarge,

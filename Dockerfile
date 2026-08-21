@@ -40,14 +40,14 @@ RUN set -eux; \
       fi; \
     fi
 
-RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 wmtk
+RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 scrubai
 WORKDIR /app
 
 # Build context is deny-by-default via .dockerignore; copy only what runs.
-COPY --chown=wmtk:wmtk wmtk/ ./wmtk/
-COPY --chown=wmtk:wmtk ui/ ./ui/
+COPY --chown=scrubai:scrubai scrubai/ ./scrubai/
+COPY --chown=scrubai:scrubai ui/ ./ui/
 
-USER wmtk
+USER scrubai
 
 EXPOSE 8765
 
@@ -56,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=4).status==200 else 1)"
 
 # 0.0.0.0 inside the container; compose maps it to 127.0.0.1 on the host only.
-CMD ["python", "-m", "wmtk.server", "--host", "0.0.0.0", "--port", "8765", "--allow-non-local"]
+CMD ["python", "-m", "scrubai.server", "--host", "0.0.0.0", "--port", "8765", "--allow-non-local"]

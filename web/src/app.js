@@ -1,4 +1,4 @@
-/* wmtk web app. No framework, no build step, no backend.
+/* scrubai web app. No framework, no build step, no backend.
  *
  * Security note that governs this whole file: the page holds the visitor's API
  * key, so script injection here means key theft. Nothing untrusted is ever

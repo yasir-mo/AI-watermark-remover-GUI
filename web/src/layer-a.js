@@ -1,6 +1,6 @@
 /* Layer A in the browser: scan and clean invisible-character watermarks.
  *
- * This is a hand port of wmtk/layer_a.py and wmtk/unicode_tables.py. The
+ * This is a hand port of scrubai/layer_a.py and scrubai/unicode_tables.py. The
  * Python side is the reference implementation; the codepoint tables here are
  * GENERATED from it (see tables.js) and both runtimes are pinned to the same
  * conformance vectors, so a divergence fails CI before it can ship.

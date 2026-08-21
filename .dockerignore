@@ -1,8 +1,8 @@
-# Deny by default; the Dockerfile opts in to wmtk/ and ui/ only.
+# Deny by default; the Dockerfile opts in to scrubai/ and ui/ only.
 *
 
-!wmtk/
-!wmtk/**
+!scrubai/
+!scrubai/**
 !ui/
 !ui/**
 

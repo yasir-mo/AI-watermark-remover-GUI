@@ -16,8 +16,8 @@
  * safe. Storage choice is a second layer of defence.
  */
 
-const PREFIX = 'wmtk.key.';
-const REMEMBER_FLAG = 'wmtk.remember';
+const PREFIX = 'scrubai.key.';
+const REMEMBER_FLAG = 'scrubai.remember';
 
 const session = () => globalThis.sessionStorage;
 const local = () => globalThis.localStorage;

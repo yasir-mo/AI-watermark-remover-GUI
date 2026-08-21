@@ -50,7 +50,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Test
-        run: pytest --cov=wmtk --cov-report=term-missing
+        run: pytest --cov=scrubai --cov-report=term-missing
 
       - name: Verify the core imports with no third-party packages
         shell: bash
@@ -60,9 +60,9 @@ jobs:
           python - <<'PY'
           import subprocess, sys, pathlib
           mods = [
-              "wmtk.layer_a", "wmtk.safety", "wmtk.server",
-              "wmtk.rewrite", "wmtk.capabilities", "wmtk.openapi",
-              "wmtk.metadata", "wmtk.unicode_tables",
+              "scrubai.layer_a", "scrubai.safety", "scrubai.server",
+              "scrubai.rewrite", "scrubai.capabilities", "scrubai.openapi",
+              "scrubai.metadata", "scrubai.unicode_tables",
           ]
           bad = []
           for m in mods:
@@ -147,7 +147,7 @@ jobs:
 
       - name: Start the service
         run: |
-          python -m wmtk.server --port 8765 &
+          python -m scrubai.server --port 8765 &
           for i in $(seq 1 40); do
             curl -sf http://127.0.0.1:8765/health && break
             sleep 0.25
@@ -177,12 +177,12 @@ jobs:
           "
 
       - name: The UI is served
-        run: curl -sf http://127.0.0.1:8765/ui/ | grep -q '<title>wmtk'
+        run: curl -sf http://127.0.0.1:8765/ui/ | grep -q '<title>ScrubAI'
 
       - name: Path traversal is refused
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' --path-as-is \
-                 'http://127.0.0.1:8765/ui/../wmtk/server.py')
+                 'http://127.0.0.1:8765/ui/../scrubai/server.py')
           test "$code" != "200" || (echo "traversal succeeded" && exit 1)
 
       - name: The OpenAPI spec parses
@@ -193,10 +193,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the core image
-        run: docker build -t wmtk:ci .
+        run: docker build -t scrubai:ci .
       - name: Run it and check health
         run: |
-          docker run -d --name wmtk-ci -p 127.0.0.1:8765:8765 wmtk:ci
+          docker run -d --name scrubai-ci -p 127.0.0.1:8765:8765 scrubai:ci
           for i in $(seq 1 40); do
             curl -sf http://127.0.0.1:8765/health && break
             sleep 0.5
@@ -209,7 +209,7 @@ jobs:
           assert caps['tools']['qpdf']['installed'], 'qpdf missing from the image'
           "
       - name: The container does not run as root
-        run: test "$(docker exec wmtk-ci id -u)" != "0"
+        run: test "$(docker exec scrubai-ci id -u)" != "0"
       - name: Clean up
         if: always()
-        run: docker rm -f wmtk-ci || true
+        run: docker rm -f scrubai-ci || true
