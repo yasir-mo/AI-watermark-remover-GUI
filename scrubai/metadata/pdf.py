@@ -133,23 +133,31 @@ def clean(data: bytes) -> tuple[bytes, MetaResult]:
 
 
 def _clean_stdlib(data: bytes, res: MetaResult) -> bytes:
-    out, n_xmp = XMP_PACKET_RE.subn(b"", data)
+    """Overwrite metadata in place with spaces, keeping every byte offset.
+
+    Deleting bytes would shift every later object, leaving the xref table and
+    the metadata stream's /Length wrong. Overwriting with whitespace at the same
+    length leaves the file structurally identical: the XMP stream becomes
+    blank, and each /Info string becomes ``()`` followed by padding, which PDF
+    treats as insignificant whitespace between dictionary entries.
+    """
+
+    def blank(m: re.Match[bytes]) -> bytes:
+        return b" " * len(m.group(0))
+
+    out, n_xmp = XMP_PACKET_RE.subn(blank, data)
     if n_xmp:
-        res.actions.append(f"removed {n_xmp} XMP packet(s) by byte pattern")
+        res.actions.append(f"blanked {n_xmp} XMP packet(s) in place")
+
+    def blank_value(m: re.Match[bytes]) -> bytes:
+        key, value = m.group(1), m.group(2)
+        return key + b"()" + b" " * (len(value) - 2)
 
     total = 0
     for key in INFO_KEYS:
-        pat = re.compile(rb"(/" + key + rb"\s*)\((?:[^()\\]|\\.)*\)", re.S)
-        out, n = pat.subn(rb"\1()", out)
+        pat = re.compile(rb"(/" + key + rb"\s*)(\((?:[^()\\]|\\.)*\))", re.S)
+        out, n = pat.subn(blank_value, out)
         total += n
     if total:
-        res.actions.append(f"blanked {total} /Info string value(s)")
-
-    # Byte offsets shift when we delete, which invalidates the xref table.
-    # Most readers repair this on open. Report it anyway.
-    if n_xmp:
-        res.warnings.append(
-            "cross-reference offsets are now stale; readers will rebuild the "
-            "xref on open. Prefer the qpdf tier for a clean file."
-        )
+        res.actions.append(f"blanked {total} /Info string value(s) in place")
     return out

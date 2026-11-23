@@ -12,7 +12,7 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 
-from .common import MetaResult
+from .common import MalformedFile, MetaResult
 from .safexml import UnsafeXml, fromstring
 
 MAX_MEMBERS = 4096
@@ -146,8 +146,8 @@ def clean(data: bytes) -> tuple[bytes, MetaResult]:
     try:
         zf = _open(data)
     except (zipfile.BadZipFile, ValueError) as exc:
-        res.warnings.append(f"clean skipped: {exc}")
-        return data, res
+        # Returning `data` here would hand back an untouched file as "cleaned".
+        raise MalformedFile(f"cannot open package: {exc}") from exc
 
     buf = io.BytesIO()
     dropped: list[str] = []

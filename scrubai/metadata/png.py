@@ -67,7 +67,18 @@ def _chunks(data: bytes):
         yield ctype, payload, data[pos:end]
         pos = end
         if ctype == b"IEND":
-            break
+            return
+    # Running out of bytes before IEND means the file was cut short; carrying on
+    # would write out a "cleaned" PNG that no viewer can open.
+    raise ValueError("truncated PNG: no IEND chunk")
+
+
+def _iend_offset(data: bytes) -> int:
+    """Byte offset just past the IEND chunk."""
+    pos = len(SIGNATURE)
+    for _ctype, _payload, raw in _chunks(data):
+        pos += len(raw)
+    return pos
 
 
 def _describe(ctype: bytes, payload: bytes) -> str:
@@ -104,6 +115,12 @@ def inspect(data: bytes) -> MetaResult:
         # chunk type itself looked generic.
         if b"jumb" in payload[:64].lower() or b"c2pa" in payload[:256].lower():
             res.add("c2pa", f"C2PA/JUMBF signature inside {ctype.decode('latin-1')}", len(raw))
+
+    # Bytes appended after IEND are invisible to viewers and a common place to
+    # stash data. clean() never copies them.
+    trailing = len(data) - _iend_offset(data)
+    if trailing:
+        res.add("trailing_data", f"{trailing} byte(s) after IEND", trailing)
     return res
 
 
