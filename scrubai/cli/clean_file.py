@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..layer_a import clean as layer_a_clean
 from ..layer_a import scan as layer_a_scan
-from ..metadata import TEXT_FORMATS, clean_file, detect_format, inspect_file
+from ..metadata import TEXT_FORMATS, MalformedFile, clean_file, detect_format, inspect_file
 from ..safety import InputTooLarge, atomic_write_bytes, check_size
 
 
@@ -60,7 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         _emit(report, args.json)
         return 0
 
-    out, meta = clean_file(data, src.name)
+    try:
+        out, meta = clean_file(data, src.name)
+    except MalformedFile as exc:
+        print(f"error: {exc}; nothing written", file=sys.stderr)
+        return 2
     report["metadata"] = meta.to_dict()
 
     if fmt in TEXT_FORMATS and not args.no_layer_a:

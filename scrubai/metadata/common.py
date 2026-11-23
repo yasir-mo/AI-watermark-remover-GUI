@@ -6,6 +6,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+class MalformedFile(ValueError):
+    """The file is corrupt or uses a feature the handler cannot parse.
+
+    Raised by ``clean_file`` instead of returning the input unchanged, so a
+    caller never mistakes an untouched file for a cleaned one.
+    """
+
+
 @dataclass
 class MetaFinding:
     """One piece of metadata detected in a file."""

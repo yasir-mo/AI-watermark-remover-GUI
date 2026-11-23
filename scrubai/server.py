@@ -39,7 +39,7 @@ from .capabilities import capabilities
 from .layer_a import clean as layer_a_clean
 from .layer_a import diff_ops
 from .layer_a import scan as layer_a_scan
-from .metadata import TEXT_FORMATS, clean_file, detect_format, inspect_file
+from .metadata import TEXT_FORMATS, MalformedFile, clean_file, detect_format, inspect_file
 from .openapi import spec
 from .rewrite import BackendConfig, RewriteError, rewrite
 from .safety import MAX_INPUT_BYTES
@@ -151,7 +151,12 @@ def handle_clean(payload: dict[str, Any]) -> dict[str, Any]:
     report: dict[str, Any] = {"name": name, "format": fmt, "input_bytes": len(data)}
 
     if opts["metadata"]:
-        data, meta = clean_file(data, name)
+        try:
+            data, meta = clean_file(data, name)
+        except MalformedFile as exc:
+            raise HttpError(
+                HTTPStatus.UNPROCESSABLE_ENTITY, "file is malformed", str(exc)
+            ) from exc
         report["metadata"] = meta.to_dict()
 
     if opts["layer_a"] and fmt in TEXT_FORMATS:
@@ -183,17 +188,17 @@ def handle_rewrite(payload: dict[str, Any]) -> dict[str, Any]:
     if len(text.encode("utf-8")) > MAX_INPUT_BYTES:
         raise HttpError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "text too large")
 
-    cfg = BackendConfig(
-        backend=str(payload.get("backend", "print-prompt")),
-        model=str(payload.get("model", "llama3.1")),
-        base_url=str(payload.get("base_url", "http://127.0.0.1:11434")),
-        temperature=float(payload.get("temperature", 0.9)),
-        timeout=int(payload.get("timeout", 180)),
-        allow_remote=bool(payload.get("allow_remote", False)),
-        # Supplied by the UI's key field. Never logged; never echoed back.
-        api_key_override=(payload.get("api_key") or None),
-    )
     try:
+        cfg = BackendConfig(
+            backend=str(payload.get("backend", "print-prompt")),
+            model=str(payload.get("model", "llama3.1")),
+            base_url=str(payload.get("base_url", "http://127.0.0.1:11434")),
+            temperature=float(payload.get("temperature", 0.9)),
+            timeout=int(payload.get("timeout", 180)),
+            allow_remote=bool(payload.get("allow_remote", False)),
+            # Supplied by the UI's key field. Never logged; never echoed back.
+            api_key_override=(payload.get("api_key") or None),
+        )
         result = rewrite(
             text,
             strength=str(payload.get("strength", "paraphrase")),

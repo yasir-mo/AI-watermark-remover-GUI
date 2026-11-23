@@ -9,15 +9,20 @@ work, but are never required.
 from __future__ import annotations
 
 import json
+import struct
+import subprocess
+import zipfile
+import zlib
 from pathlib import Path
 
-from ..safety import ToolFailed, have_tool, run_tool, safe_arg_path, temp_workdir
+from ..safety import ToolFailed, ToolMissing, have_tool, run_tool, safe_arg_path, temp_workdir
 from . import html_md, jpeg, ooxml, pdf, png, svg, webp
-from .common import MetaFinding, MetaResult
+from .common import MalformedFile, MetaFinding, MetaResult
 
 __all__ = [
     "SUPPORTED_FORMATS",
     "TEXT_FORMATS",
+    "MalformedFile",
     "MetaFinding",
     "MetaResult",
     "clean_file",
@@ -297,13 +302,35 @@ _CLEANERS = {
 }
 
 
+#: What a handler raises on corrupt or unsupported input. zipfile alone can
+#: raise most of these (RuntimeError for an encrypted member,
+#: NotImplementedError for an unknown compression method). Mutation fuzzing of
+#: every fixture is what found them; see tests/test_malformed.py.
+_PARSE_ERRORS = (
+    ValueError,
+    EOFError,
+    RuntimeError,
+    NotImplementedError,
+    struct.error,
+    zlib.error,
+    zipfile.BadZipFile,
+    zipfile.LargeZipFile,
+    ToolFailed,
+    subprocess.TimeoutExpired,
+)
+
+
 def inspect_file(data: bytes, name: str = "input.bin", *, use_tools: bool = True) -> MetaResult:
     fmt = detect_format(name, data)
     inspector = _INSPECTORS.get(fmt)
     if inspector is None:
         result = MetaResult(format=fmt)
     else:
-        result = inspector(data)
+        try:
+            result = inspector(data)
+        except _PARSE_ERRORS as exc:
+            result = MetaResult(format=fmt)
+            result.warnings.append(f"malformed {fmt}, report is incomplete: {exc}")
         result.format = fmt
     if use_tools and fmt not in ("text", "markdown"):
         _enrich(result, data, name)
@@ -311,15 +338,26 @@ def inspect_file(data: bytes, name: str = "input.bin", *, use_tools: bool = True
 
 
 def clean_file(data: bytes, name: str = "input.bin") -> tuple[bytes, MetaResult]:
+    """Return ``(cleaned_bytes, report)``.
+
+    Raises ``MalformedFile`` when the file cannot be parsed, rather than handing
+    back the original bytes as if they had been cleaned.
+    """
     fmt = detect_format(name, data)
     cleaner = _CLEANERS.get(fmt)
     if cleaner is None:
         return data, MetaResult(format=fmt)
 
+    try:
+        out, result = cleaner(data)
+    except MalformedFile:
+        raise
+    except _PARSE_ERRORS as exc:
+        raise MalformedFile(f"cannot clean malformed {fmt}: {exc}") from exc
+    result.format = fmt
+
     # For images, run exiftool as a belt-and-braces second pass when present;
     # our parsers are conservative and exiftool knows about vendor oddities.
-    out, result = cleaner(data)
-    result.format = fmt
 
     if fmt in ("png", "jpeg", "webp") and have_tool("exiftool"):
         out = _exiftool_scrub(out, name, result)
@@ -341,7 +379,7 @@ def _exiftool_scrub(data: bytes, name: str, result: MetaResult) -> bytes:
                     safe_arg_path(path),
                 ]
             )
-        except ToolFailed as exc:
+        except (ToolFailed, ToolMissing, subprocess.TimeoutExpired) as exc:
             result.warnings.append(f"exiftool second pass failed: {exc}")
             return data
         result.actions.append("exiftool -all= second pass applied")
